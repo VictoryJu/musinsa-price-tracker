@@ -3,12 +3,17 @@ import { getAllProducts } from '../shared/storage';
 import { processProductCheck } from './pipeline';
 
 const HOUR_MS = 60 * 60 * 1000;
+const ALARM_NAME = 'musinsa-price-tracker.tick';
 let runInProgress = false;
 
 export interface RunDueProductBatchOptions {
   now?: number;
   fetchHtml: (url: string) => Promise<string>;
   jitterMs?: number;
+}
+
+export interface RegisterBackgroundSchedulerOptions {
+  fetchHtml: (url: string) => Promise<string>;
 }
 
 export function computeNextCheckAt(now: number, fetchIntervalHours: number, jitterMs: number): number {
@@ -44,4 +49,18 @@ export async function runDueProductBatch(
   } finally {
     runInProgress = false;
   }
+}
+
+export function registerBackgroundScheduler(options: RegisterBackgroundSchedulerOptions): void {
+  chrome.alarms.create(ALARM_NAME, { periodInMinutes: 1 });
+
+  const run = (): void => {
+    void runDueProductBatch({ fetchHtml: options.fetchHtml });
+  };
+
+  chrome.runtime.onInstalled.addListener(run);
+  chrome.runtime.onStartup.addListener(run);
+  chrome.alarms.onAlarm.addListener((alarm) => {
+    if (alarm.name === ALARM_NAME) run();
+  });
 }

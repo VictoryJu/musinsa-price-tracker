@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { getProduct, initializeStorage, setProduct } from '../shared/storage';
-import { computeNextCheckAt, pickDueProduct, runDueProductBatch } from './scheduler';
+import { computeNextCheckAt, pickDueProduct, registerBackgroundScheduler, runDueProductBatch } from './scheduler';
 import type { Product } from '../shared/types';
 
 function product(id: string, nextCheckAt: number): Product {
@@ -106,5 +106,16 @@ describe('scheduler math', () => {
 
     expect([first.processedProductId, second.processedProductId].filter(Boolean)).toEqual(['due-a']);
     expect(fetchCount).toBe(1);
+  });
+
+  it('registers MV3 startup, install, and alarm listeners', () => {
+    registerBackgroundScheduler({
+      fetchHtml: async () => '<html></html>',
+    });
+
+    expect(chrome.alarms.create).toHaveBeenCalledWith('musinsa-price-tracker.tick', { periodInMinutes: 1 });
+    expect(chrome.alarms.onAlarm.addListener).toHaveBeenCalledTimes(1);
+    expect(chrome.runtime.onInstalled.addListener).toHaveBeenCalledTimes(1);
+    expect(chrome.runtime.onStartup.addListener).toHaveBeenCalledTimes(1);
   });
 });

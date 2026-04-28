@@ -38,6 +38,23 @@ const mockStorage = new Map<string, unknown>();
       }),
     },
   },
+  alarms: {
+    create: vi.fn(),
+    onAlarm: {
+      addListener: vi.fn(),
+    },
+  },
+  runtime: {
+    onInstalled: {
+      addListener: vi.fn(),
+    },
+    onStartup: {
+      addListener: vi.fn(),
+    },
+  },
+  notifications: {
+    create: vi.fn(),
+  },
 };
 
 beforeEach(() => {
