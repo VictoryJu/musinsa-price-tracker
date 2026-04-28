@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "Musinsa Price Tracker",
+  "version": "0.1.0",
+  "description": "Track Musinsa product prices and show buyability signals.",
+  "permissions": ["storage", "alarms", "notifications"],
+  "host_permissions": ["*://*.musinsa.com/products/*"],
+  "background": {
+    "service_worker": "src/background/index.ts",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "src/popup/index.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://*.musinsa.com/products/*"],
+      "js": ["src/content/index.ts"],
+      "run_at": "document_idle"
+    }
+  ]
+}
