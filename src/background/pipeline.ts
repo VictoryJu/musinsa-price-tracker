@@ -7,6 +7,7 @@ import {
   recomputeAndStoreStats,
   setProduct,
 } from '../shared/storage';
+import type { CurrentSnapshot } from '../shared/types';
 import { computeNextCheckAt } from './scheduler';
 
 export interface ProcessProductCheckOptions {
@@ -20,10 +21,8 @@ export async function processProductCheck(productId: string, options: ProcessPro
   if (!product) return;
 
   const settings = await getSettings();
-  const html = await options.fetchHtml(product.canonicalUrl);
-  const document = new DOMParser().parseFromString(html, 'text/html');
-  const snapshot = await extractProductPrice(document, { now: options.now, productId });
   const nextCheckAt = computeNextCheckAt(options.now, settings.fetchIntervalHours, options.jitterMs ?? 0);
+  const snapshot = await getSnapshot(product.canonicalUrl, productId, options);
 
   await setProduct({
     ...product,
@@ -40,4 +39,25 @@ export async function processProductCheck(productId: string, options: ProcessPro
 
   await recomputeAndStoreStats(productId, options.now);
   await pruneHistory(productId, settings.retentionDays, options.now);
+}
+
+async function getSnapshot(
+  canonicalUrl: string,
+  productId: string,
+  options: ProcessProductCheckOptions
+): Promise<CurrentSnapshot> {
+  try {
+    const html = await options.fetchHtml(canonicalUrl);
+    const document = new DOMParser().parseFromString(html, 'text/html');
+    return await extractProductPrice(document, { now: options.now, productId });
+  } catch (err) {
+    const error = err instanceof Error ? err : new Error(String(err));
+    return {
+      price: null,
+      ts: options.now,
+      extractorPath: 'unknown',
+      status: 'failed',
+      errorMessage: error.message,
+    };
+  }
 }

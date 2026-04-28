@@ -80,4 +80,33 @@ describe('processProductCheck', () => {
     const history = await getHistoryChunk(product.id, '2026-04');
     expect(history).toEqual([{ ts: now, price: 37700, status: 'ok' }]);
   });
+
+  it('persists a failed snapshot and schedule when fetch throws', async () => {
+    await initializeStorage();
+    const product = productFixture();
+    await setProduct(product);
+    const now = Date.UTC(2026, 3, 15);
+
+    await processProductCheck(product.id, {
+      now,
+      jitterMs: 30_000,
+      fetchHtml: async () => {
+        throw new Error('fetch blocked');
+      },
+    });
+
+    const stored = await getProduct(product.id);
+    expect(stored?.currentSnapshot).toEqual({
+      price: null,
+      ts: now,
+      extractorPath: 'unknown',
+      status: 'failed',
+      errorMessage: 'fetch blocked',
+    });
+    expect(stored?.lastCheckedAt).toBe(now);
+    expect(stored?.nextCheckAt).toBe(now + 12 * 60 * 60 * 1000 + 30_000);
+
+    const history = await getHistoryChunk(product.id, '2026-04');
+    expect(history).toEqual([{ ts: now, price: null, status: 'failed' }]);
+  });
 });
