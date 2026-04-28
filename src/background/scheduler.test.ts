@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { computeNextCheckAt, pickDueProduct } from './scheduler';
+import { getProduct, initializeStorage, setProduct } from '../shared/storage';
+import { computeNextCheckAt, pickDueProduct, runDueProductBatch } from './scheduler';
 import type { Product } from '../shared/types';
 
 function product(id: string, nextCheckAt: number): Product {
@@ -52,5 +53,58 @@ describe('scheduler math', () => {
     const now = 1_700_000_000_000;
 
     expect(pickDueProduct([product('future', now + 1_000)], now)).toBeNull();
+  });
+
+  it('processes only one due product per alarm batch', async () => {
+    await initializeStorage();
+    const now = Date.UTC(2026, 3, 15);
+    await setProduct(product('due-a', now - 10_000));
+    await setProduct(product('due-b', now - 5_000));
+
+    const result = await runDueProductBatch({
+      now,
+      jitterMs: 0,
+      fetchHtml: async () => `
+        <html>
+          <body>
+            <strong class="price">37,700\uC6D0</strong>
+          </body>
+        </html>
+      `,
+    });
+
+    expect(result.processedProductId).toBe('due-a');
+    expect((await getProduct('due-a'))?.lastCheckedAt).toBe(now);
+    expect((await getProduct('due-b'))?.lastCheckedAt).toBe(0);
+  });
+
+  it('prevents simultaneous alarm wakes from processing the same product twice in one worker', async () => {
+    await initializeStorage();
+    const now = Date.UTC(2026, 3, 15);
+    await setProduct(product('due-a', now - 10_000));
+    let fetchCount = 0;
+
+    const [first, second] = await Promise.all([
+      runDueProductBatch({
+        now,
+        jitterMs: 0,
+        fetchHtml: async () => {
+          fetchCount += 1;
+          await new Promise((resolve) => setTimeout(resolve, 10));
+          return '<html><body><strong class="price">37,700\uC6D0</strong></body></html>';
+        },
+      }),
+      runDueProductBatch({
+        now,
+        jitterMs: 0,
+        fetchHtml: async () => {
+          fetchCount += 1;
+          return '<html><body><strong class="price">37,700\uC6D0</strong></body></html>';
+        },
+      }),
+    ]);
+
+    expect([first.processedProductId, second.processedProductId].filter(Boolean)).toEqual(['due-a']);
+    expect(fetchCount).toBe(1);
   });
 });
