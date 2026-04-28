@@ -71,4 +71,42 @@ describe('extractProductPrice', () => {
     expect(result.price).toBe(37700);
     expect(result.status).toBe('ok');
   });
+
+  it('returns soldOut when sold-out text is visible', async () => {
+    const page = doc(`
+      <html>
+        <body>
+          <h1>Test Hoodie</h1>
+          <button disabled>품절</button>
+        </body>
+      </html>
+    `);
+
+    await expect(extractProductPrice(page, { now: 1 })).resolves.toEqual({
+      price: null,
+      ts: 1,
+      extractorPath: 'unknown',
+      status: 'soldOut',
+      errorMessage: 'Product is sold out',
+    });
+  });
+
+  it('returns failed when every extraction path is unavailable', async () => {
+    const page = doc(`
+      <html>
+        <body>
+          <h1>Test Hoodie</h1>
+          <p>No price here.</p>
+        </body>
+      </html>
+    `);
+
+    await expect(extractProductPrice(page, { now: 1 })).resolves.toEqual({
+      price: null,
+      ts: 1,
+      extractorPath: 'unknown',
+      status: 'failed',
+      errorMessage: 'Unable to extract price',
+    });
+  });
 });

@@ -13,6 +13,17 @@ export async function extractProductPrice(
   options: ExtractProductPriceOptions = {}
 ): Promise<CurrentSnapshot> {
   const ts = options.now ?? Date.now();
+
+  if (isSoldOut(document)) {
+    return {
+      price: null,
+      ts,
+      extractorPath: 'unknown',
+      status: 'soldOut',
+      errorMessage: 'Product is sold out',
+    };
+  }
+
   const jsonLdPrice = extractJsonLdPrice(document);
 
   if (jsonLdPrice !== null && isValidPrice(jsonLdPrice) && isPriceVisible(document, jsonLdPrice)) {
@@ -129,6 +140,11 @@ function getVisibleText(document: Document): string {
   if (!(clone instanceof HTMLElement)) return '';
   clone.querySelectorAll('script, style, noscript').forEach((element) => element.remove());
   return clone.textContent ?? '';
+}
+
+function isSoldOut(document: Document): boolean {
+  const text = getVisibleText(document).toLowerCase();
+  return ['sold out', '품절', '일시품절', '판매 종료'].some((marker) => text.includes(marker));
 }
 
 function isValidPrice(price: number): boolean {
