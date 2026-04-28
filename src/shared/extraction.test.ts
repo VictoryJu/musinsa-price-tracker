@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { extractProductPrice } from './extraction';
 
 const KRW = '\uC6D0';
@@ -102,6 +102,58 @@ describe('extractProductPrice', () => {
     `);
 
     await expect(extractProductPrice(page, { now: 1 })).resolves.toEqual({
+      price: null,
+      ts: 1,
+      extractorPath: 'unknown',
+      status: 'failed',
+      errorMessage: 'Unable to extract price',
+    });
+  });
+
+  it('uses injected internal API fetcher as the last resort', async () => {
+    const page = doc(`
+      <html>
+        <body>
+          <h1>Test Hoodie</h1>
+        </body>
+      </html>
+    `);
+    const fetchJson = vi.fn(async () => ({ product: { salePrice: 37700 } }));
+
+    const result = await extractProductPrice(page, {
+      now: 1,
+      productId: '3674341',
+      fetchJson,
+    });
+
+    expect(fetchJson).toHaveBeenCalledWith('/api/product/3674341');
+    expect(result).toEqual({
+      price: 37700,
+      ts: 1,
+      extractorPath: 'internal-api',
+      status: 'ok',
+    });
+  });
+
+  it('returns failed when internal API fallback throws', async () => {
+    const page = doc(`
+      <html>
+        <body>
+          <h1>Test Hoodie</h1>
+        </body>
+      </html>
+    `);
+    const fetchJson = vi.fn(async () => {
+      throw new Error('blocked');
+    });
+
+    await expect(
+      extractProductPrice(page, {
+        now: 1,
+        apiEndpoint: '/api/custom/3674341',
+        fetchJson,
+      })
+    ).resolves.toEqual({
       price: null,
       ts: 1,
       extractorPath: 'unknown',

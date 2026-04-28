@@ -45,6 +45,16 @@ export async function extractProductPrice(
     };
   }
 
+  const apiPrice = await extractInternalApiPrice(options);
+  if (apiPrice !== null) {
+    return {
+      price: apiPrice,
+      ts,
+      extractorPath: 'internal-api',
+      status: 'ok',
+    };
+  }
+
   return {
     price: null,
     ts,
@@ -52,6 +62,46 @@ export async function extractProductPrice(
     status: 'failed',
     errorMessage: 'Unable to extract price',
   };
+}
+
+async function extractInternalApiPrice(options: ExtractProductPriceOptions): Promise<number | null> {
+  if (!options.fetchJson) return null;
+
+  const url = options.apiEndpoint ?? (options.productId ? `/api/product/${options.productId}` : null);
+  if (!url) return null;
+
+  try {
+    const response = await options.fetchJson(url);
+    const price = findApiPrice(response);
+    return price !== null && isValidPrice(price) ? price : null;
+  } catch {
+    return null;
+  }
+}
+
+function findApiPrice(value: unknown): number | null {
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const price = findApiPrice(item);
+      if (price !== null) return price;
+    }
+    return null;
+  }
+
+  if (!isRecord(value)) return readPriceValue(value);
+
+  const salePrice = readPriceValue(value.salePrice);
+  if (salePrice !== null) return salePrice;
+
+  const price = readPriceValue(value.price);
+  if (price !== null) return price;
+
+  for (const item of Object.values(value)) {
+    const nestedPrice = findApiPrice(item);
+    if (nestedPrice !== null) return nestedPrice;
+  }
+
+  return null;
 }
 
 function extractCssPrice(document: Document): number | null {
