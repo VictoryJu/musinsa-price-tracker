@@ -107,6 +107,28 @@ export async function setProduct(product: Product): Promise<void> {
   });
 }
 
+export async function markNewLowNotified(productId: string, price: number, ts: number): Promise<boolean> {
+  const products = await getProductsMap();
+  const product = products[productId];
+  if (!product) return false;
+
+  if (product.lastNotified && product.lastNotified.price <= price) {
+    return false;
+  }
+
+  await chrome.storage.local.set({
+    products: {
+      ...products,
+      [productId]: {
+        ...product,
+        lastNotified: { price, ts },
+      },
+    },
+  });
+
+  return true;
+}
+
 export async function deleteProduct(productId: string): Promise<void> {
   const products = await getProductsMap();
   const { [productId]: _deleted, ...remaining } = products;

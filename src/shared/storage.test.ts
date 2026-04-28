@@ -10,6 +10,7 @@ import {
   getYearMonth,
   initializeStorage,
   listHistoryChunkKeys,
+  markNewLowNotified,
   pruneHistory,
   recomputeAndStoreStats,
   setProduct,
@@ -167,5 +168,30 @@ describe('storage foundation', () => {
   it('throws when recomputing stats for a missing product', async () => {
     await initializeStorage();
     await expect(recomputeAndStoreStats('missing', Date.now())).rejects.toThrow('missing');
+  });
+
+  it('marks a new low notification token once', async () => {
+    await initializeStorage();
+    const product = productFixture();
+    await setProduct(product);
+
+    await expect(markNewLowNotified(product.id, 30000, 1)).resolves.toBe(true);
+    expect((await getProduct(product.id))?.lastNotified).toEqual({ price: 30000, ts: 1 });
+  });
+
+  it('does not mark the same or higher notified price again', async () => {
+    await initializeStorage();
+    const product = { ...productFixture(), lastNotified: { price: 30000, ts: 1 } };
+    await setProduct(product);
+
+    await expect(markNewLowNotified(product.id, 30000, 2)).resolves.toBe(false);
+    await expect(markNewLowNotified(product.id, 31000, 3)).resolves.toBe(false);
+    expect((await getProduct(product.id))?.lastNotified).toEqual({ price: 30000, ts: 1 });
+  });
+
+  it('returns false when marking notification for a missing product', async () => {
+    await initializeStorage();
+
+    await expect(markNewLowNotified('missing', 30000, 1)).resolves.toBe(false);
   });
 });
