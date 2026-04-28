@@ -24,6 +24,16 @@ export async function extractProductPrice(
     };
   }
 
+  const cssPrice = extractCssPrice(document);
+  if (cssPrice !== null) {
+    return {
+      price: cssPrice,
+      ts,
+      extractorPath: 'css-selector',
+      status: 'ok',
+    };
+  }
+
   return {
     price: null,
     ts,
@@ -31,6 +41,31 @@ export async function extractProductPrice(
     status: 'failed',
     errorMessage: 'Unable to extract price',
   };
+}
+
+function extractCssPrice(document: Document): number | null {
+  const saleSelectors = [
+    '[data-price-type="sale"]',
+    '[data-testid="sale-price"]',
+    '.sale-price',
+    '[class*="sale"][class*="price"]',
+  ];
+  const genericSelectors = ['[data-price]', '[data-testid="price"]', '.price'];
+
+  return findFirstValidPrice(document, saleSelectors) ?? findFirstValidPrice(document, genericSelectors);
+}
+
+function findFirstValidPrice(document: Document, selectors: string[]): number | null {
+  for (const selector of selectors) {
+    const elements = Array.from(document.querySelectorAll(selector));
+    for (const element of elements) {
+      const attrPrice = element.getAttribute('data-price');
+      const price = parsePrice(attrPrice ?? element.textContent ?? '');
+      if (price !== null && isValidPrice(price)) return price;
+    }
+  }
+
+  return null;
 }
 
 function extractJsonLdPrice(document: Document): number | null {
@@ -85,8 +120,15 @@ function readPriceValue(value: unknown): number | null {
 }
 
 function isPriceVisible(document: Document, price: number): boolean {
-  const visibleText = document.body?.textContent ?? '';
+  const visibleText = getVisibleText(document);
   return parsePrice(visibleText) === price || visibleText.includes(price.toLocaleString('ko-KR'));
+}
+
+function getVisibleText(document: Document): string {
+  const clone = document.body?.cloneNode(true);
+  if (!(clone instanceof HTMLElement)) return '';
+  clone.querySelectorAll('script, style, noscript').forEach((element) => element.remove());
+  return clone.textContent ?? '';
 }
 
 function isValidPrice(price: number): boolean {

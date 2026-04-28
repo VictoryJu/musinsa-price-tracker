@@ -31,4 +31,44 @@ describe('extractProductPrice', () => {
       status: 'ok',
     });
   });
+
+  it('rejects JSON-LD price when it does not match the visible page price', async () => {
+    const page = doc(`
+      <html>
+        <body>
+          <script type="application/ld+json">
+            {
+              "@context": "https://schema.org",
+              "@type": "Product",
+              "offers": { "@type": "Offer", "price": "49900" }
+            }
+          </script>
+          <strong class="sale-price">37,700${KRW}</strong>
+        </body>
+      </html>
+    `);
+
+    const result = await extractProductPrice(page, { now: 1 });
+
+    expect(result.extractorPath).toBe('css-selector');
+    expect(result.price).toBe(37700);
+    expect(result.status).toBe('ok');
+  });
+
+  it('prefers visible sale price over regular price in CSS fallback', async () => {
+    const page = doc(`
+      <html>
+        <body>
+          <span class="price">49,900${KRW}</span>
+          <strong class="sale-price">37,700${KRW}</strong>
+        </body>
+      </html>
+    `);
+
+    const result = await extractProductPrice(page, { now: 1 });
+
+    expect(result.extractorPath).toBe('css-selector');
+    expect(result.price).toBe(37700);
+    expect(result.status).toBe('ok');
+  });
 });
