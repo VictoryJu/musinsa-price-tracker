@@ -78,6 +78,23 @@ describe('scheduler math', () => {
     expect((await getProduct('due-b'))?.lastCheckedAt).toBe(0);
   });
 
+  it('re-reads storage on the next wake so resume after worker death is safe', async () => {
+    await initializeStorage();
+    const now = Date.UTC(2026, 3, 15);
+    await setProduct(product('due-a', now - 10_000));
+    await setProduct(product('due-b', now - 5_000));
+
+    const fetchHtml = async (): Promise<string> => '<html><body><strong class="price">37,700\uC6D0</strong></body></html>';
+
+    const first = await runDueProductBatch({ now, jitterMs: 0, fetchHtml });
+    const second = await runDueProductBatch({ now, jitterMs: 0, fetchHtml });
+
+    expect(first.processedProductId).toBe('due-a');
+    expect(second.processedProductId).toBe('due-b');
+    expect((await getProduct('due-a'))?.lastCheckedAt).toBe(now);
+    expect((await getProduct('due-b'))?.lastCheckedAt).toBe(now);
+  });
+
   it('prevents simultaneous alarm wakes from processing the same product twice in one worker', async () => {
     await initializeStorage();
     const now = Date.UTC(2026, 3, 15);
