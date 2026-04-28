@@ -1,7 +1,7 @@
 export function formatPrice(value: number | null): string {
   if (value === null) return '-';
   const rounded = Math.round(value);
-  return `${rounded.toLocaleString('ko-KR')}원`;
+  return `${rounded.toLocaleString('ko-KR')}\uC6D0`;
 }
 
 export function parsePrice(input: string): number | null {

@@ -30,6 +30,28 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+function defaultSettings(): Settings {
+  return {
+    ...DEFAULT_SETTINGS,
+    buyabilityThresholds: { ...DEFAULT_SETTINGS.buyabilityThresholds },
+  };
+}
+
+function normalizeSettings(value: unknown): Settings {
+  if (!isRecord(value)) return defaultSettings();
+
+  const thresholds = isRecord(value.buyabilityThresholds)
+    ? { ...DEFAULT_SETTINGS.buyabilityThresholds, ...value.buyabilityThresholds }
+    : { ...DEFAULT_SETTINGS.buyabilityThresholds };
+
+  return {
+    ...DEFAULT_SETTINGS,
+    ...value,
+    schemaVersion: CURRENT_SCHEMA_VERSION,
+    buyabilityThresholds: thresholds,
+  } as Settings;
+}
+
 export async function initializeStorage(): Promise<void> {
   const current = await chrome.storage.local.get(['schemaVersion', 'products', 'settings']);
   const patch: Record<string, unknown> = {};
@@ -43,9 +65,9 @@ export async function initializeStorage(): Promise<void> {
   }
 
   if (!isRecord(current.settings)) {
-    patch.settings = { ...DEFAULT_SETTINGS };
+    patch.settings = defaultSettings();
   } else {
-    patch.settings = { ...DEFAULT_SETTINGS, ...current.settings, schemaVersion: CURRENT_SCHEMA_VERSION };
+    patch.settings = normalizeSettings(current.settings);
   }
 
   if (Object.keys(patch).length > 0) {
@@ -55,14 +77,12 @@ export async function initializeStorage(): Promise<void> {
 
 export async function getSettings(): Promise<Settings> {
   const result = await chrome.storage.local.get('settings');
-  return isRecord(result.settings)
-    ? ({ ...DEFAULT_SETTINGS, ...result.settings, schemaVersion: CURRENT_SCHEMA_VERSION } as Settings)
-    : { ...DEFAULT_SETTINGS };
+  return normalizeSettings(result.settings);
 }
 
 export async function setSettings(settings: Settings): Promise<void> {
   await chrome.storage.local.set({
-    settings: { ...settings, schemaVersion: CURRENT_SCHEMA_VERSION },
+    settings: normalizeSettings(settings),
   });
 }
 

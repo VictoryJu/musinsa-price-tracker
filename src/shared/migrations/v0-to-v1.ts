@@ -7,7 +7,10 @@ export async function v0_to_v1(): Promise<void> {
   };
 
   if (existing.settings === undefined) {
-    patch.settings = { ...DEFAULT_SETTINGS };
+    patch.settings = {
+      ...DEFAULT_SETTINGS,
+      buyabilityThresholds: { ...DEFAULT_SETTINGS.buyabilityThresholds },
+    };
   }
 
   if (existing.products === undefined) {

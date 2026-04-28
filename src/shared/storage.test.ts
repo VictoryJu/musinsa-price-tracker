@@ -14,7 +14,7 @@ import {
   recomputeAndStoreStats,
   setProduct,
 } from './storage';
-import { CURRENT_SCHEMA_VERSION } from './types';
+import { CURRENT_SCHEMA_VERSION, DEFAULT_SETTINGS } from './types';
 import type { Product } from './types';
 
 const day = 24 * 60 * 60 * 1000;
@@ -58,6 +58,16 @@ describe('storage foundation', () => {
     const settings = await getSettings();
     expect(settings.retentionDays).toBe(365);
     expect(settings.minSamplesForAnalysis).toBe(20);
+  });
+
+  it('returns settings without sharing nested DEFAULT_SETTINGS objects', async () => {
+    await initializeStorage();
+
+    const settings = await getSettings();
+    settings.buyabilityThresholds.great = 99;
+
+    expect(DEFAULT_SETTINGS.buyabilityThresholds.great).toBe(10);
+    expect((await getSettings()).buyabilityThresholds.great).toBe(10);
   });
 
   it('sets, gets, lists, and deletes products', async () => {

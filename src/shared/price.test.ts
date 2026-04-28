@@ -1,14 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { computePercentile, formatPrice, parsePrice } from './price';
 
+const KRW = '\uC6D0';
+
 describe('formatPrice', () => {
   it('formats integer KRW with comma separators', () => {
-    expect(formatPrice(37700)).toBe('37,700원');
-    expect(formatPrice(1000000)).toBe('1,000,000원');
+    expect(formatPrice(37700)).toBe(`37,700${KRW}`);
+    expect(formatPrice(1000000)).toBe(`1,000,000${KRW}`);
   });
 
   it('formats zero explicitly', () => {
-    expect(formatPrice(0)).toBe('0원');
+    expect(formatPrice(0)).toBe(`0${KRW}`);
   });
 
   it('returns placeholder for null', () => {
@@ -16,17 +18,17 @@ describe('formatPrice', () => {
   });
 
   it('rounds decimals to integer KRW', () => {
-    expect(formatPrice(37700.7)).toBe('37,701원');
+    expect(formatPrice(37700.7)).toBe(`37,701${KRW}`);
   });
 
   it('formats negative values for deltas', () => {
-    expect(formatPrice(-5200)).toBe('-5,200원');
+    expect(formatPrice(-5200)).toBe(`-5,200${KRW}`);
   });
 });
 
 describe('parsePrice', () => {
   it('extracts integer price from KRW text', () => {
-    expect(parsePrice('37,700원')).toBe(37700);
+    expect(parsePrice(`37,700${KRW}`)).toBe(37700);
   });
 
   it('works without a currency symbol', () => {
@@ -34,7 +36,7 @@ describe('parsePrice', () => {
   });
 
   it('trims whitespace', () => {
-    expect(parsePrice('  37,700원 ')).toBe(37700);
+    expect(parsePrice(`  37,700${KRW} `)).toBe(37700);
   });
 
   it('returns null when no number exists', () => {
@@ -43,7 +45,7 @@ describe('parsePrice', () => {
   });
 
   it('chooses the largest number group to ignore discount rates', () => {
-    expect(parsePrice('60% 37,700원')).toBe(37700);
+    expect(parsePrice(`60% 37,700${KRW}`)).toBe(37700);
   });
 });
 
