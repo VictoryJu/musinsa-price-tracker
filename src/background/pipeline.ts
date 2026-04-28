@@ -8,12 +8,14 @@ import {
   setProduct,
 } from '../shared/storage';
 import type { CurrentSnapshot } from '../shared/types';
+import { maybeNotifyNewLow, type MaybeNotifyNewLowOptions } from './notifications';
 import { computeNextCheckAt } from './scheduler';
 
 export interface ProcessProductCheckOptions {
   now: number;
   fetchHtml: (url: string) => Promise<string>;
   jitterMs?: number;
+  notify?: MaybeNotifyNewLowOptions['notify'];
 }
 
 export async function processProductCheck(productId: string, options: ProcessProductCheckOptions): Promise<void> {
@@ -38,6 +40,7 @@ export async function processProductCheck(productId: string, options: ProcessPro
   });
 
   await recomputeAndStoreStats(productId, options.now);
+  await maybeNotifyNewLow(productId, { notify: options.notify });
   await pruneHistory(productId, settings.retentionDays, options.now);
 }
 

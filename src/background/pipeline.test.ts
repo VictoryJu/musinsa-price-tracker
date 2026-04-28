@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { getHistoryChunk, getProduct, initializeStorage, setProduct } from '../shared/storage';
 import type { Product } from '../shared/types';
 import { processProductCheck } from './pipeline';
@@ -108,5 +108,22 @@ describe('processProductCheck', () => {
 
     const history = await getHistoryChunk(product.id, '2026-04');
     expect(history).toEqual([{ ts: now, price: null, status: 'failed' }]);
+  });
+
+  it('notifies once after a successful new-low price check', async () => {
+    await initializeStorage();
+    const product = productFixture();
+    await setProduct(product);
+    const now = Date.UTC(2026, 3, 15);
+    const notify = vi.fn();
+
+    await processProductCheck(product.id, {
+      now,
+      fetchHtml: async () => productHtml(30000),
+      notify,
+    });
+
+    expect(notify).toHaveBeenCalledOnce();
+    expect((await getProduct(product.id))?.lastNotified).toEqual({ price: 30000, ts: now });
   });
 });
