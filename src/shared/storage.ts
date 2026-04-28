@@ -10,6 +10,11 @@ import {
   type Stats,
 } from './types';
 
+// Storage write contract:
+// These adapter functions are intended to be called by the background service worker.
+// Content scripts should request writes through typed runtime messages to avoid
+// multi-tab write races and keep background as the single source of truth.
+
 export function getYearMonth(ts: number): string {
   const date = new Date(ts);
   const year = date.getUTCFullYear();
