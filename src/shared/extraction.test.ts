@@ -157,6 +157,60 @@ describe('extractProductPrice', () => {
     });
   });
 
+  it('returns soldOut when JSON-LD availability is out of stock', async () => {
+    const page = doc(`
+      <html>
+        <body>
+          <script type="application/ld+json">
+            {
+              "@context": "https://schema.org",
+              "@type": "Product",
+              "offers": {
+                "@type": "Offer",
+                "price": "37700",
+                "availability": "https://schema.org/OutOfStock"
+              }
+            }
+          </script>
+          <strong class="price">37,700${KRW}</strong>
+        </body>
+      </html>
+    `);
+
+    await expect(extractProductPrice(page, { now: 1 })).resolves.toEqual({
+      price: null,
+      ts: 1,
+      extractorPath: 'unknown',
+      status: 'soldOut',
+      errorMessage: 'Product is sold out',
+    });
+  });
+
+  it('returns soldOut when internal API fallback reports soldOut', async () => {
+    const page = doc(`
+      <html>
+        <body>
+          <h1>Test Hoodie</h1>
+        </body>
+      </html>
+    `);
+    const fetchJson = vi.fn(async () => ({ product: { soldOut: true, salePrice: 37700 } }));
+
+    await expect(
+      extractProductPrice(page, {
+        now: 1,
+        productId: '3674341',
+        fetchJson,
+      })
+    ).resolves.toEqual({
+      price: null,
+      ts: 1,
+      extractorPath: 'unknown',
+      status: 'soldOut',
+      errorMessage: 'Product is sold out',
+    });
+  });
+
   it('returns failed when every extraction path is unavailable', async () => {
     const page = doc(`
       <html>

@@ -15,18 +15,15 @@ export async function extractProductPrice(
   const ts = options.now ?? Date.now();
 
   if (isSoldOut(document)) {
-    return {
-      price: null,
-      ts,
-      extractorPath: 'unknown',
-      status: 'soldOut',
-      errorMessage: 'Product is sold out',
-    };
+    return soldOutSnapshot(ts);
   }
 
   const salePrices = extractVisibleSalePrices(document);
   const salePrice = salePrices[0] ?? null;
   const variantNotice = hasVariantSalePrices(salePrices) ? 'Variant prices detected' : undefined;
+  if (isJsonLdSoldOut(document)) {
+    return soldOutSnapshot(ts);
+  }
   const jsonLdPrice = extractJsonLdPrice(document);
 
   if (jsonLdPrice !== null && isValidPrice(jsonLdPrice) && isPriceVisible(document, jsonLdPrice)) {
@@ -59,7 +56,11 @@ export async function extractProductPrice(
     };
   }
 
-  const apiPrice = await extractInternalApiPrice(options);
+  const apiResult = await extractInternalApiResult(options);
+  if (apiResult.soldOut) {
+    return soldOutSnapshot(ts);
+  }
+  const apiPrice = apiResult.price;
   if (apiPrice !== null) {
     return {
       price: apiPrice,
@@ -78,18 +79,29 @@ export async function extractProductPrice(
   };
 }
 
-async function extractInternalApiPrice(options: ExtractProductPriceOptions): Promise<number | null> {
-  if (!options.fetchJson) return null;
+function soldOutSnapshot(ts: number): CurrentSnapshot {
+  return {
+    price: null,
+    ts,
+    extractorPath: 'unknown',
+    status: 'soldOut',
+    errorMessage: 'Product is sold out',
+  };
+}
+
+async function extractInternalApiResult(options: ExtractProductPriceOptions): Promise<{ price: number | null; soldOut: boolean }> {
+  if (!options.fetchJson) return { price: null, soldOut: false };
 
   const url = options.apiEndpoint ?? (options.productId ? `/api/product/${options.productId}` : null);
-  if (!url) return null;
+  if (!url) return { price: null, soldOut: false };
 
   try {
     const response = await options.fetchJson(url);
+    if (findSoldOutFlag(response)) return { price: null, soldOut: true };
     const price = findApiPrice(response);
-    return price !== null && isValidPrice(price) ? price : null;
+    return { price: price !== null && isValidPrice(price) ? price : null, soldOut: false };
   } catch {
-    return null;
+    return { price: null, soldOut: false };
   }
 }
 
@@ -197,6 +209,23 @@ function extractJsonLdPrice(document: Document): number | null {
   return null;
 }
 
+function isJsonLdSoldOut(document: Document): boolean {
+  const scripts = Array.from(document.querySelectorAll('script[type="application/ld+json"]'));
+
+  for (const script of scripts) {
+    const text = script.textContent?.trim();
+    if (!text) continue;
+
+    try {
+      if (findSoldOutFlag(JSON.parse(text) as unknown)) return true;
+    } catch {
+      continue;
+    }
+  }
+
+  return false;
+}
+
 function findJsonLdPrice(value: unknown): number | null {
   if (Array.isArray(value)) {
     for (const item of value) {
@@ -227,6 +256,18 @@ function readPriceValue(value: unknown): number | null {
   if (typeof value === 'number') return value;
   if (typeof value === 'string') return parsePrice(value);
   return null;
+}
+
+function findSoldOutFlag(value: unknown): boolean {
+  if (Array.isArray(value)) return value.some((item) => findSoldOutFlag(item));
+  if (!isRecord(value)) {
+    if (typeof value !== 'string') return false;
+    const normalized = value.toLowerCase();
+    return normalized.includes('outofstock') || normalized.includes('soldout') || normalized.includes('sold out');
+  }
+
+  if (value.soldOut === true || value.isSoldOut === true || value.outOfStock === true) return true;
+  return Object.values(value).some((item) => findSoldOutFlag(item));
 }
 
 function isPriceVisible(document: Document, price: number): boolean {
