@@ -1,4 +1,5 @@
 import { registerBackgroundMessageHandler } from './messages';
+import { processProductCheck } from './pipeline';
 import { registerBackgroundScheduler } from './scheduler';
 
 const fetchHtml = async (url: string): Promise<string> => {
@@ -9,8 +10,23 @@ const fetchHtml = async (url: string): Promise<string> => {
   return response.text();
 };
 
-registerBackgroundMessageHandler();
+export interface RegisterBackgroundServicesOptions {
+  fetchHtml: (url: string) => Promise<string>;
+  now?: () => number;
+}
 
-registerBackgroundScheduler({
-  fetchHtml,
-});
+export function registerBackgroundServices(options: RegisterBackgroundServicesOptions): void {
+  registerBackgroundMessageHandler({
+    checkProduct: (productId) =>
+      processProductCheck(productId, {
+        now: options.now?.() ?? Date.now(),
+        fetchHtml: options.fetchHtml,
+      }),
+  });
+
+  registerBackgroundScheduler({
+    fetchHtml: options.fetchHtml,
+  });
+}
+
+registerBackgroundServices({ fetchHtml });
