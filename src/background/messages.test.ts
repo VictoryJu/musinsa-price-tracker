@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { getProduct, initializeStorage, setProduct } from '../shared/storage';
+import { getAllProducts, getProduct, initializeStorage, setProduct } from '../shared/storage';
 import type { Product } from '../shared/types';
 import { createRefreshNowMessage, createTrackStartMessage, createTrackStopMessage } from '../shared/messages';
 import { handleRuntimeMessage, registerBackgroundMessageHandler } from './messages';
@@ -63,6 +63,48 @@ describe('background runtime messages', () => {
         status: 'failed',
       },
     });
+  });
+
+  it('canonicalizes the final product URL once during TRACK_START', async () => {
+    await initializeStorage();
+    const resolveCanonicalUrl = vi.fn(async () => 'https://www.musinsa.com/products/3674341?utm_source=ad');
+
+    await handleRuntimeMessage(
+      createTrackStartMessage({
+        productId: '3674341',
+        canonicalUrl: 'https://www.musinsa.com/products/3674341?utm_source=feed',
+        name: 'Test Hoodie',
+        thumbnail: '',
+      }),
+      { now: () => 100, resolveCanonicalUrl }
+    );
+
+    expect(resolveCanonicalUrl).toHaveBeenCalledWith('https://www.musinsa.com/products/3674341?utm_source=feed');
+    expect((await getProduct('3674341'))?.canonicalUrl).toBe('https://www.musinsa.com/products/3674341');
+  });
+
+  it('keeps one product entry when the same product is registered through different URLs', async () => {
+    await initializeStorage();
+
+    await handleRuntimeMessage(
+      createTrackStartMessage({
+        productId: '3674341',
+        canonicalUrl: 'https://www.musinsa.com/products/3674341?utm_source=feed',
+        name: 'Test Hoodie',
+        thumbnail: '',
+      })
+    );
+    await handleRuntimeMessage(
+      createTrackStartMessage({
+        productId: '3674341',
+        canonicalUrl: 'https://www.musinsa.com/products/3674341?utm_source=ad',
+        name: 'Test Hoodie',
+        thumbnail: '',
+      })
+    );
+
+    expect(await getAllProducts()).toHaveLength(1);
+    expect((await getProduct('3674341'))?.canonicalUrl).toBe('https://www.musinsa.com/products/3674341');
   });
 
   it('handles TRACK_STOP by deleting the product through storage', async () => {

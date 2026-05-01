@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { processProductCheck } from './pipeline';
 import { registerBackgroundMessageHandler } from './messages';
 import { registerBackgroundScheduler } from './scheduler';
-import { registerBackgroundServices } from './index';
+import { registerBackgroundServices, resolveFinalProductUrl } from './index';
 
 vi.mock('./pipeline', () => ({
   processProductCheck: vi.fn(async () => undefined),
@@ -32,5 +32,19 @@ describe('background service registration', () => {
       fetchHtml,
     });
     expect(registerBackgroundScheduler).toHaveBeenCalledWith({ fetchHtml });
+  });
+
+  it('resolves a final URL by following one fetch redirect', async () => {
+    const fetchMock = vi.fn(async () => ({ url: 'https://www.musinsa.com/products/3674341?utm_source=ad', ok: true }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(resolveFinalProductUrl('https://musinsa.test/alias/3674341')).resolves.toBe(
+      'https://www.musinsa.com/products/3674341?utm_source=ad'
+    );
+    expect(fetchMock).toHaveBeenCalledWith('https://musinsa.test/alias/3674341', {
+      method: 'HEAD',
+      redirect: 'follow',
+      credentials: 'include',
+    });
   });
 });

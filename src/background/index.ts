@@ -22,11 +22,21 @@ export function registerBackgroundServices(options: RegisterBackgroundServicesOp
         now: options.now?.() ?? Date.now(),
         fetchHtml: options.fetchHtml,
       }),
+    resolveCanonicalUrl: resolveFinalProductUrl,
   });
 
   registerBackgroundScheduler({
     fetchHtml: options.fetchHtml,
   });
+}
+
+export async function resolveFinalProductUrl(url: string): Promise<string> {
+  const response = await fetch(url, {
+    method: 'HEAD',
+    redirect: 'follow',
+    credentials: 'include',
+  });
+  return response.url || url;
 }
 
 registerBackgroundServices({ fetchHtml });
