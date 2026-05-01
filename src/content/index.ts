@@ -1,4 +1,4 @@
-import { createLogVisitMessage, createTrackStartMessage } from '../shared/messages';
+import { createLogVisitMessage, createRefreshNowMessage, createTrackStartMessage } from '../shared/messages';
 import type { HistorySample, Product, ProductsMap } from '../shared/types';
 import { renderProductUi } from './render';
 
@@ -27,6 +27,7 @@ export async function bootstrapContentPage(root: Document, pageLocation: Locatio
     onTrackStart: () => {
       void chrome.runtime.sendMessage(createTrackStartMessage(summary));
     },
+    onRefreshNow: (targetProductId) => chrome.runtime.sendMessage(createRefreshNowMessage(targetProductId)),
   });
 }
 

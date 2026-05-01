@@ -99,6 +99,31 @@ describe('bootstrapContentPage', () => {
     vi.useRealTimers();
   });
 
+  it('sends REFRESH_NOW from the inline hover tooltip', async () => {
+    vi.useFakeTimers();
+    (chrome.storage.local.get as unknown as Mock).mockResolvedValueOnce({
+      products: { '3674341': productFixture() },
+      '3674341:2026-04': [
+        { ts: 1, price: 37700, status: 'ok' },
+        { ts: 2, price: 38000, status: 'ok' },
+      ],
+    });
+
+    await bootstrapContentPage(document, setLocation('/products/3674341'));
+
+    const mount = document.querySelector('[data-musinsa-price-tracker]');
+    mount?.dispatchEvent(new MouseEvent('mouseenter'));
+    vi.advanceTimersByTime(300);
+    mount?.shadowRoot?.querySelector<HTMLButtonElement>('[data-refresh-now]')?.click();
+    await Promise.resolve();
+
+    expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({
+      type: 'REFRESH_NOW',
+      payload: { productId: '3674341' },
+    });
+    vi.useRealTimers();
+  });
+
   it('does nothing on non-product pages', async () => {
     await bootstrapContentPage(document, setLocation('/ranking'));
 

@@ -227,6 +227,47 @@ describe('renderProductUi', () => {
     expect(sparkline?.querySelector('polyline')?.getAttribute('points')).toBe('0,18 50,9 100,0');
   });
 
+  it('refreshes the tracked product from the hover tooltip and shows a spinner while pending', async () => {
+    vi.useFakeTimers();
+    let resolveRefresh!: () => void;
+    const onRefreshNow = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveRefresh = resolve;
+        })
+    );
+    renderProductUi({
+      root: document,
+      productId: '3674341',
+      product: productFixture(),
+      onTrackStart: vi.fn(),
+      onRefreshNow,
+      hoverDelayMs: 300,
+      historySamples: [sample(1, 37700), sample(2, 38000)],
+    });
+
+    const mount = document.querySelector('[data-musinsa-price-tracker]');
+    mount?.dispatchEvent(new MouseEvent('mouseenter'));
+    vi.advanceTimersByTime(300);
+
+    const button = mount?.shadowRoot?.querySelector<HTMLButtonElement>('[data-refresh-now]');
+    button?.click();
+    await Promise.resolve();
+
+    expect(onRefreshNow).toHaveBeenCalledWith('3674341');
+    expect(button?.disabled).toBe(true);
+    expect(button?.getAttribute('aria-busy')).toBe('true');
+    expect(button?.textContent).toBe('체크 중...');
+
+    resolveRefresh();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(button?.disabled).toBe(false);
+    expect(button?.getAttribute('aria-busy')).toBe('false');
+    expect(button?.textContent).toBe('지금 체크');
+  });
+
   it('ignores unavailable samples in the hover sparkline path', () => {
     vi.useFakeTimers();
     renderProductUi({

@@ -6,6 +6,7 @@ export interface RenderProductUiOptions {
   productId: string;
   product: Product | null;
   onTrackStart: () => void;
+  onRefreshNow?: (productId: string) => Promise<unknown>;
   hoverDelayMs?: number;
   historySamples?: HistorySample[];
   now?: number;
@@ -113,6 +114,7 @@ function attachDelayedTooltip(mount: HTMLElement, shadow: ShadowRoot, options: R
       tooltip.dataset.tooltip = 'true';
       tooltip.textContent = `${historySamples.length} samples`;
       tooltip.append(createInlineSparkline(historySamples));
+      tooltip.append(createRefreshButton(options));
       shadow.append(tooltip);
     }, delay);
   });
@@ -121,6 +123,34 @@ function attachDelayedTooltip(mount: HTMLElement, shadow: ShadowRoot, options: R
     if (timer) clearTimeout(timer);
     timer = null;
   });
+}
+
+function createRefreshButton(options: RenderProductUiOptions): HTMLButtonElement {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.dataset.refreshNow = options.productId;
+  button.textContent = '지금 체크';
+  button.setAttribute('aria-busy', 'false');
+  button.addEventListener('click', () => {
+    void refreshNow(options, button);
+  });
+  return button;
+}
+
+async function refreshNow(options: RenderProductUiOptions, button: HTMLButtonElement): Promise<void> {
+  if (!options.onRefreshNow) return;
+
+  button.disabled = true;
+  button.setAttribute('aria-busy', 'true');
+  button.textContent = '체크 중...';
+
+  try {
+    await options.onRefreshNow(options.productId);
+  } finally {
+    button.disabled = false;
+    button.setAttribute('aria-busy', 'false');
+    button.textContent = '지금 체크';
+  }
 }
 
 function createInlineSparkline(samples: HistorySample[]): SVGSVGElement {
