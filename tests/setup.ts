@@ -51,6 +51,9 @@ const mockStorage = new Map<string, unknown>();
     onStartup: {
       addListener: vi.fn(),
     },
+    onMessage: {
+      addListener: vi.fn(),
+    },
   },
   notifications: {
     create: vi.fn(),
