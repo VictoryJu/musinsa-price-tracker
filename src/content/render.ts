@@ -33,13 +33,44 @@ export function renderProductUi(options: RenderProductUiOptions): RenderProductU
   }
 
   const shadow = mount.attachShadow({ mode: 'open' });
+  mount.setAttribute('data-state', getSnapshotState(options.product));
+  shadow.append(createStatusStyle());
+
   const label = options.root.createElement('span');
+  label.dataset.snapshotLabel = 'true';
   label.textContent = formatSnapshotLabel(options.product.currentSnapshot);
   shadow.append(label);
   mount.setAttribute('data-hover-mounted', 'true');
   attachDelayedTooltip(mount, shadow, options);
 
   return { mode: 'tracked', durationMs: performance.now() - startedAt };
+}
+
+function getSnapshotState(product: Product): 'ok' | 'soldOut' | 'failed' | 'blocked' {
+  if (product.currentSnapshot.status === 'failed' && product.currentSnapshot.errorClass === 'blocked') return 'blocked';
+  return product.currentSnapshot.status;
+}
+
+function createStatusStyle(): HTMLStyleElement {
+  const style = document.createElement('style');
+  style.dataset.statusStyle = 'true';
+  style.textContent = `
+    :host {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    :host([data-state="failed"]) [data-snapshot-label],
+    :host([data-state="blocked"]) [data-snapshot-label] {
+      color: #b42318;
+      font-weight: 600;
+    }
+    :host([data-state="soldOut"]) [data-snapshot-label] {
+      color: #667085;
+      font-weight: 600;
+    }
+  `;
+  return style;
 }
 
 function removeExistingMount(root: Document): void {

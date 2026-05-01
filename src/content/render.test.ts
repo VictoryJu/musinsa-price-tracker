@@ -71,6 +71,52 @@ describe('renderProductUi', () => {
     expect(mount?.getAttribute('data-hover-mounted')).toBe('true');
   });
 
+  it('renders failed extraction with a distinct error state', () => {
+    renderProductUi({
+      root: document,
+      productId: '3674341',
+      product: productFixture({
+        currentSnapshot: {
+          price: null,
+          ts: 1,
+          extractorPath: 'unknown',
+          status: 'failed',
+          errorClass: 'parse',
+          errorMessage: 'Unable to extract price',
+        },
+      }),
+      onTrackStart: vi.fn(),
+    });
+
+    const mount = document.querySelector('[data-musinsa-price-tracker]');
+    expect(mount?.getAttribute('data-state')).toBe('failed');
+    expect(mount?.shadowRoot?.textContent).toContain('가격 추출 실패 ⚠️');
+    expect(mount?.shadowRoot?.querySelector('[data-status-style]')?.textContent).toContain('[data-state="failed"]');
+  });
+
+  it('renders bot-blocked fetch with a distinct blocked state', () => {
+    renderProductUi({
+      root: document,
+      productId: '3674341',
+      product: productFixture({
+        currentSnapshot: {
+          price: null,
+          ts: 1,
+          extractorPath: 'unknown',
+          status: 'failed',
+          errorClass: 'blocked',
+          errorMessage: 'fetch blocked',
+        },
+      }),
+      onTrackStart: vi.fn(),
+    });
+
+    const mount = document.querySelector('[data-musinsa-price-tracker]');
+    expect(mount?.getAttribute('data-state')).toBe('blocked');
+    expect(mount?.shadowRoot?.textContent).toContain('fetch 차단됨');
+    expect(mount?.shadowRoot?.querySelector('[data-status-style]')?.textContent).toContain('[data-state="blocked"]');
+  });
+
   it('keeps tracked render under the 50ms budget in jsdom', () => {
     const result = renderProductUi({
       root: document,

@@ -36,7 +36,20 @@ describe('presentation helpers', () => {
       errorMessage: 'fetch blocked',
     };
 
-    expect(formatSnapshotLabel(snapshot)).toBe('가격 확인 실패: blocked');
+    expect(formatSnapshotLabel(snapshot)).toBe('fetch 차단됨');
+  });
+
+  it('formats generic failed snapshots as explicit extraction failure', () => {
+    const snapshot: CurrentSnapshot = {
+      price: null,
+      ts: 1,
+      extractorPath: 'unknown',
+      status: 'failed',
+      errorClass: 'parse',
+      errorMessage: 'Unable to extract price',
+    };
+
+    expect(formatSnapshotLabel(snapshot)).toBe('가격 추출 실패 ⚠️');
   });
 
   it('converts unavailable samples to null chart points so lines break', () => {
