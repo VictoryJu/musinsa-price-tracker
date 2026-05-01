@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { Product } from '../shared/types';
+import type { HistorySample, Product } from '../shared/types';
 import { renderProductUi } from './render';
 
 function productFixture(overrides: Partial<Product> = {}): Product {
@@ -29,6 +29,10 @@ function productFixture(overrides: Partial<Product> = {}): Product {
     lastCheckedAt: 1,
     ...overrides,
   };
+}
+
+function sample(ts: number, price: number | null, status: HistorySample['status'] = 'ok'): HistorySample {
+  return { ts, price, status };
 }
 
 describe('renderProductUi', () => {
@@ -86,7 +90,7 @@ describe('renderProductUi', () => {
       product: productFixture(),
       onTrackStart: vi.fn(),
       hoverDelayMs: 300,
-      historySamples: [{ ts: 1, price: 37700, status: 'ok' }],
+      historySamples: [sample(1, 37700)],
     });
 
     const mount = document.querySelector('[data-musinsa-price-tracker]');
@@ -106,7 +110,7 @@ describe('renderProductUi', () => {
       product: productFixture(),
       onTrackStart: vi.fn(),
       hoverDelayMs: 300,
-      historySamples: [{ ts: 1, price: 37700, status: 'ok' }],
+      historySamples: [sample(1, 37700)],
     });
 
     const mount = document.querySelector('[data-musinsa-price-tracker]');
@@ -125,7 +129,7 @@ describe('renderProductUi', () => {
       product: productFixture(),
       onTrackStart: vi.fn(),
       hoverDelayMs: 300,
-      historySamples: [{ ts: 1, price: 37700, status: 'ok' }],
+      historySamples: [sample(1, 37700)],
     });
 
     const mount = document.querySelector('[data-musinsa-price-tracker]');
@@ -137,5 +141,52 @@ describe('renderProductUi', () => {
     vi.advanceTimersByTime(300);
 
     expect(mount?.shadowRoot?.querySelector('[data-sparkline]')).toBeNull();
+  });
+
+  it('renders cached history as an inline SVG sparkline after hover delay', () => {
+    vi.useFakeTimers();
+    renderProductUi({
+      root: document,
+      productId: '3674341',
+      product: productFixture(),
+      onTrackStart: vi.fn(),
+      hoverDelayMs: 300,
+      historySamples: [
+        sample(3, 39000),
+        sample(1, 37000),
+        sample(2, 38000),
+      ],
+    });
+
+    const mount = document.querySelector('[data-musinsa-price-tracker]');
+    mount?.dispatchEvent(new MouseEvent('mouseenter'));
+    vi.advanceTimersByTime(300);
+
+    const sparkline = mount?.shadowRoot?.querySelector('[data-sparkline]');
+    expect(sparkline?.tagName.toLowerCase()).toBe('svg');
+    expect(sparkline?.querySelector('polyline')?.getAttribute('points')).toBe('0,18 50,9 100,0');
+  });
+
+  it('ignores unavailable samples in the hover sparkline path', () => {
+    vi.useFakeTimers();
+    renderProductUi({
+      root: document,
+      productId: '3674341',
+      product: productFixture(),
+      onTrackStart: vi.fn(),
+      hoverDelayMs: 300,
+      historySamples: [
+        sample(1, 37000),
+        sample(2, null, 'soldOut'),
+        sample(3, null, 'failed'),
+        sample(4, 39000),
+      ],
+    });
+
+    const mount = document.querySelector('[data-musinsa-price-tracker]');
+    mount?.dispatchEvent(new MouseEvent('mouseenter'));
+    vi.advanceTimersByTime(300);
+
+    expect(mount?.shadowRoot?.querySelector('[data-sparkline] polyline')?.getAttribute('points')).toBe('0,18 100,0');
   });
 });
