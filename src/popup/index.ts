@@ -2,7 +2,7 @@ import { createRefreshNowMessage } from '../shared/messages';
 import { formatSnapshotLabel } from '../shared/presentation';
 import { formatPrice } from '../shared/price';
 import { clearStorage, getStorageSnapshot, replaceStorageSnapshot } from '../shared/storage';
-import type { ProductsMap } from '../shared/types';
+import type { Product, ProductsMap } from '../shared/types';
 
 void renderPopup(document);
 
@@ -17,7 +17,7 @@ export async function renderPopup(root: Document): Promise<void> {
   const count = productList.length;
 
   if (countLabel) countLabel.textContent = `${count} tracked product${count === 1 ? '' : 's'}`;
-  renderSettingsActions(root, settings);
+  renderSettingsActions(root, settings, productList);
   if (!list) return;
 
   list.textContent = '';
@@ -69,7 +69,7 @@ export async function resetStorage(
   await clearStorage();
 }
 
-function renderSettingsActions(root: Document, settings: Element | null): void {
+function renderSettingsActions(root: Document, settings: Element | null, products: Product[]): void {
   if (!settings) return;
   settings.textContent = '';
 
@@ -105,7 +105,20 @@ function renderSettingsActions(root: Document, settings: Element | null): void {
     void resetStorage();
   });
 
-  settings.append(exportButton, importButton, importInput, resetButton);
+  const debugButton = root.createElement('button');
+  debugButton.type = 'button';
+  debugButton.dataset.debugToggle = 'true';
+  debugButton.textContent = 'Debug';
+
+  const debugPanel = root.createElement('section');
+  debugPanel.dataset.debugPanel = 'true';
+  debugPanel.hidden = true;
+  renderDebugPanel(root, debugPanel, products);
+  debugButton.addEventListener('click', () => {
+    debugPanel.hidden = !debugPanel.hidden;
+  });
+
+  settings.append(exportButton, importButton, importInput, resetButton, debugButton, debugPanel);
 }
 
 async function downloadStorageSnapshot(root: Document): Promise<void> {
@@ -127,6 +140,66 @@ function isValidBackup(value: unknown): value is Record<string, unknown> {
     if (/^\d+:\d{4}-\d{2}$/.test(key) && !Array.isArray(entry)) return false;
   }
   return true;
+}
+
+function renderDebugPanel(root: Document, panel: HTMLElement, products: Product[]): void {
+  const report = buildDebugReport(products, Date.now());
+  panel.textContent = '';
+
+  const summary = root.createElement('pre');
+  summary.textContent = [
+    `total products: ${report.aggregate.totalProducts}`,
+    `failed products: ${report.aggregate.failedProducts}`,
+    `blocked fetches 7d: ${report.aggregate.blockedFetches7d}`,
+  ].join('\n');
+
+  const list = root.createElement('div');
+  for (const product of report.products) {
+    const item = root.createElement('pre');
+    item.dataset.debugProduct = product.id;
+    item.textContent = [
+      product.name,
+      `extractorPath: ${product.extractorPath}`,
+      `lastError: ${product.lastError}`,
+      `lastCheckedAt: ${product.lastCheckedAt}`,
+      `samplesIn30d: ${product.samplesIn30d}`,
+    ].join('\n');
+    list.append(item);
+  }
+
+  const copyButton = root.createElement('button');
+  copyButton.type = 'button';
+  copyButton.dataset.copyDebug = 'true';
+  copyButton.textContent = 'Copy report';
+  copyButton.addEventListener('click', () => {
+    void navigator.clipboard?.writeText(JSON.stringify(report));
+  });
+
+  panel.append(summary, list, copyButton);
+}
+
+function buildDebugReport(products: Product[], now: number) {
+  const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+  const failedProducts = products.filter((product) => product.currentSnapshot.status === 'failed');
+  const blockedFetches7d = failedProducts.filter(
+    (product) => product.currentSnapshot.errorClass === 'blocked' && now - product.lastCheckedAt <= sevenDaysMs
+  );
+
+  return {
+    aggregate: {
+      totalProducts: products.length,
+      failedProducts: failedProducts.length,
+      blockedFetches7d: blockedFetches7d.length,
+    },
+    products: products.map((product) => ({
+      id: product.id,
+      name: product.name,
+      extractorPath: product.currentSnapshot.extractorPath,
+      lastError: [product.currentSnapshot.errorClass, product.currentSnapshot.errorMessage].filter(Boolean).join(' ') || '-',
+      lastCheckedAt: product.lastCheckedAt,
+      samplesIn30d: product.stats.samplesIn30d,
+    })),
+  };
 }
 
 async function refreshProduct(productId: string, button: HTMLButtonElement): Promise<void> {

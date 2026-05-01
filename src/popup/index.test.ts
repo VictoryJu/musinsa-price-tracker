@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
 import type { Product } from '../shared/types';
 import { exportStorageSnapshot, importStorageSnapshot, renderPopup, resetStorage } from './index';
 
@@ -35,6 +35,10 @@ describe('renderPopup', () => {
   beforeEach(() => {
     document.body.innerHTML =
       '<main><p id="tracked-count"></p><section id="product-list"></section><section id="settings"></section></main>';
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('renders one popup card with a refresh button per tracked product', async () => {
@@ -118,5 +122,53 @@ describe('renderPopup', () => {
     await expect(importStorageSnapshot('{"products":[]}', () => true)).rejects.toThrow('Invalid backup schema');
 
     expect(await chrome.storage.local.get('products')).toEqual({ products: { '3674341': productFixture() } });
+  });
+
+  it('reveals debug metadata and copies an issue report', async () => {
+    const now = Date.UTC(2026, 4, 1);
+    vi.setSystemTime(now);
+    const writeText = vi.fn(async () => undefined);
+    Object.assign(navigator, { clipboard: { writeText } });
+    await chrome.storage.local.set({
+      products: {
+        '3674341': productFixture({
+          currentSnapshot: {
+            price: null,
+            ts: now,
+            extractorPath: 'unknown',
+            status: 'failed',
+            errorClass: 'blocked',
+            errorMessage: 'fetch blocked',
+          },
+          lastCheckedAt: now - 2 * 24 * 60 * 60 * 1000,
+          stats: {
+            allTimeLow: null,
+            avg30d: null,
+            min30d: null,
+            max30d: null,
+            samplesIn30d: 0,
+            lastComputedAt: 1,
+          },
+        }),
+      },
+    });
+
+    await renderPopup(document);
+    document.querySelector<HTMLButtonElement>('[data-debug-toggle]')?.click();
+
+    const debug = document.querySelector('[data-debug-panel]');
+    expect(debug?.textContent).toContain('total products: 1');
+    expect(debug?.textContent).toContain('failed products: 1');
+    expect(debug?.textContent).toContain('blocked fetches 7d: 1');
+    expect(debug?.textContent).toContain('extractorPath: unknown');
+    expect(debug?.textContent).toContain('lastError: blocked fetch blocked');
+    expect(debug?.textContent).toContain(`lastCheckedAt: ${now - 2 * 24 * 60 * 60 * 1000}`);
+    expect(debug?.textContent).toContain('samplesIn30d: 0');
+
+    document.querySelector<HTMLButtonElement>('[data-copy-debug]')?.click();
+    await Promise.resolve();
+
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('"blockedFetches7d":1'));
+    vi.useRealTimers();
   });
 });
