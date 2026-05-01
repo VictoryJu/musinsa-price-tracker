@@ -26,6 +26,19 @@ describe('presentation helpers', () => {
     expect(formatSnapshotLabel(snapshot)).toBe('37,700원');
   });
 
+  it('formats failed snapshots with an error class when available', () => {
+    const snapshot: CurrentSnapshot = {
+      price: null,
+      ts: 1,
+      extractorPath: 'unknown',
+      status: 'failed',
+      errorClass: 'blocked',
+      errorMessage: 'fetch blocked',
+    };
+
+    expect(formatSnapshotLabel(snapshot)).toBe('가격 확인 실패: blocked');
+  });
+
   it('converts unavailable samples to null chart points so lines break', () => {
     const samples: HistorySample[] = [
       { ts: 1, price: 37000, status: 'ok' },

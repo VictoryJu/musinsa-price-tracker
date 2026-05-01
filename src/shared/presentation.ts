@@ -9,7 +9,9 @@ export interface ChartPoint {
 
 export function formatSnapshotLabel(snapshot: CurrentSnapshot): string {
   if (snapshot.status === 'soldOut') return '품절';
-  if (snapshot.status === 'failed') return '가격 확인 실패';
+  if (snapshot.status === 'failed') {
+    return snapshot.errorClass ? `가격 확인 실패: ${snapshot.errorClass}` : '가격 확인 실패';
+  }
   return formatPrice(snapshot.price);
 }
 
