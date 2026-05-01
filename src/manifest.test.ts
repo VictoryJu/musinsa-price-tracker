@@ -1,14 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import manifest from './manifest.json';
 
+const productPageMatches = [
+  '*://*.musinsa.com/products/*',
+  '*://*.musinsa.com/app/goods/*',
+  '*://*.musinsa.com/goods/*',
+];
+
 describe('manifest permissions', () => {
   it('limits host permissions to Musinsa product pages', () => {
-    expect(manifest.host_permissions).toEqual(['*://*.musinsa.com/products/*']);
+    expect(manifest.host_permissions).toEqual(productPageMatches);
   });
 
   it('runs content scripts only on Musinsa product pages', () => {
     expect(manifest.content_scripts).toHaveLength(1);
-    expect(manifest.content_scripts[0]?.matches).toEqual(['*://*.musinsa.com/products/*']);
+    expect(manifest.content_scripts[0]?.matches).toEqual(productPageMatches);
   });
 
   it('does not request broad tab permissions', () => {

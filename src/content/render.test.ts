@@ -58,6 +58,21 @@ describe('renderProductUi', () => {
     expect(mount?.getAttribute('data-hover-mounted')).toBeNull();
   });
 
+  it('pins the extension mount into the visible viewport', () => {
+    renderProductUi({
+      root: document,
+      productId: '3674341',
+      product: null,
+      onTrackStart: vi.fn(),
+    });
+
+    const mount = document.querySelector<HTMLElement>('[data-musinsa-price-tracker]');
+    expect(mount?.style.position).toBe('fixed');
+    expect(mount?.style.top).toBe('88px');
+    expect(mount?.style.right).toBe('16px');
+    expect(mount?.style.zIndex).toBe('2147483647');
+  });
+
   it('renders tracked products with a shadow label and hover marker', () => {
     const now = Date.UTC(2026, 4, 1);
     const result = renderProductUi({

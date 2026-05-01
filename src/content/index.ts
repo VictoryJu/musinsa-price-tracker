@@ -34,7 +34,7 @@ export async function bootstrapContentPage(root: Document, pageLocation: Locatio
 }
 
 function getProductId(pathname: string): string | null {
-  return pathname.match(/\/products\/(\d+)/)?.[1] ?? null;
+  return pathname.match(/\/(?:products|app\/goods|goods)\/(\d+)/)?.[1] ?? null;
 }
 
 function getOpenGraphImage(root: Document): string {

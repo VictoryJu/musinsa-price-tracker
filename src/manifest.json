@@ -4,7 +4,11 @@
   "version": "0.1.0",
   "description": "Track Musinsa product prices and show buyability signals.",
   "permissions": ["storage", "alarms", "notifications"],
-  "host_permissions": ["*://*.musinsa.com/products/*"],
+  "host_permissions": [
+    "*://*.musinsa.com/products/*",
+    "*://*.musinsa.com/app/goods/*",
+    "*://*.musinsa.com/goods/*"
+  ],
   "background": {
     "service_worker": "src/background/index.ts",
     "type": "module"
@@ -14,7 +18,11 @@
   },
   "content_scripts": [
     {
-      "matches": ["*://*.musinsa.com/products/*"],
+      "matches": [
+        "*://*.musinsa.com/products/*",
+        "*://*.musinsa.com/app/goods/*",
+        "*://*.musinsa.com/goods/*"
+      ],
       "js": ["src/content/index.ts"],
       "run_at": "document_idle"
     }

@@ -62,6 +62,30 @@ describe('bootstrapContentPage', () => {
     );
   });
 
+  it('reads product ids from current Musinsa goods page paths', async () => {
+    await bootstrapContentPage(document, setLocation('/app/goods/3674341'));
+
+    expect(document.querySelector('[data-musinsa-price-tracker]')).not.toBeNull();
+    expect(chrome.runtime.sendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'LOG_VISIT',
+        payload: expect.objectContaining({ productId: '3674341' }),
+      })
+    );
+  });
+
+  it('reads product ids from short goods page paths', async () => {
+    await bootstrapContentPage(document, setLocation('/goods/3674341'));
+
+    expect(document.querySelector('[data-musinsa-price-tracker]')).not.toBeNull();
+    expect(chrome.runtime.sendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'LOG_VISIT',
+        payload: expect.objectContaining({ productId: '3674341' }),
+      })
+    );
+  });
+
   it('sends TRACK_START when the untracked CTA is clicked', async () => {
     await bootstrapContentPage(document, setLocation('/products/3674341'));
 

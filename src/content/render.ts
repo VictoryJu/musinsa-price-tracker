@@ -25,6 +25,7 @@ export function renderProductUi(options: RenderProductUiOptions): RenderProductU
 
   const mount = options.root.createElement('span');
   mount.dataset.musinsaPriceTracker = options.productId;
+  pinMountToViewport(mount);
   options.root.body.append(mount);
 
   if (!options.product) {
@@ -32,6 +33,7 @@ export function renderProductUi(options: RenderProductUiOptions): RenderProductU
     button.type = 'button';
     button.textContent = '+';
     button.setAttribute('aria-label', 'Track this product');
+    styleTrackButton(button);
     button.addEventListener('click', options.onTrackStart);
     mount.append(button);
     return { mode: 'cta', durationMs: performance.now() - startedAt };
@@ -127,6 +129,32 @@ function createStaleBadge(product: Product, now: number): HTMLElement | null {
 
 function removeExistingMount(root: Document): void {
   root.querySelector('[data-musinsa-price-tracker]')?.remove();
+}
+
+function pinMountToViewport(mount: HTMLElement): void {
+  Object.assign(mount.style, {
+    position: 'fixed',
+    top: '88px',
+    right: '16px',
+    zIndex: '2147483647',
+    display: 'inline-flex',
+    alignItems: 'center',
+  });
+}
+
+function styleTrackButton(button: HTMLButtonElement): void {
+  Object.assign(button.style, {
+    width: '36px',
+    height: '36px',
+    border: '0',
+    borderRadius: '18px',
+    background: '#111827',
+    color: '#ffffff',
+    boxShadow: '0 8px 24px rgba(17, 24, 39, 0.24)',
+    cursor: 'pointer',
+    font: '600 22px/36px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+    padding: '0',
+  });
 }
 
 function attachDelayedTooltip(mount: HTMLElement, shadow: ShadowRoot, options: RenderProductUiOptions): void {
