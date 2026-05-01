@@ -12,6 +12,7 @@ import { maybeNotifyNewLow, type MaybeNotifyNewLowOptions } from './notification
 import { computeNextCheckAt } from './scheduler';
 
 const STALE_SAMPLE_TOLERANCE_MS = 24 * 60 * 60 * 1000;
+const RETRY_DELAY_MS = 5 * 60 * 1000;
 
 export interface ProcessProductCheckOptions {
   now: number;
@@ -25,8 +26,11 @@ export async function processProductCheck(productId: string, options: ProcessPro
   if (!product) return;
 
   const settings = await getSettings();
-  const nextCheckAt = computeNextCheckAt(options.now, settings.fetchIntervalHours, options.jitterMs ?? 0);
   const snapshot = await getSnapshot(product.canonicalUrl, productId, options);
+  const nextCheckAt =
+    snapshot.status === 'failed' && product.currentSnapshot.status !== 'failed'
+      ? options.now + RETRY_DELAY_MS
+      : computeNextCheckAt(options.now, settings.fetchIntervalHours, options.jitterMs ?? 0);
 
   if (snapshot.ts < product.lastCheckedAt - STALE_SAMPLE_TOLERANCE_MS) {
     return;

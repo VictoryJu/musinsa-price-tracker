@@ -138,6 +138,57 @@ describe('processProductCheck', () => {
     });
   });
 
+  it('schedules one retry five minutes after the first failed check', async () => {
+    await initializeStorage();
+    const product = {
+      ...productFixture(),
+      currentSnapshot: {
+        price: 41000,
+        ts: Date.UTC(2026, 3, 14),
+        extractorPath: 'json-ld' as const,
+        status: 'ok' as const,
+      },
+    };
+    await setProduct(product);
+    const now = Date.UTC(2026, 3, 15);
+
+    await processProductCheck(product.id, {
+      now,
+      fetchHtml: async () => {
+        throw new TypeError('Failed to fetch');
+      },
+    });
+
+    expect((await getProduct(product.id))?.nextCheckAt).toBe(now + 5 * 60 * 1000);
+  });
+
+  it('uses the regular interval after a persistent failed retry', async () => {
+    await initializeStorage();
+    const product = {
+      ...productFixture(),
+      currentSnapshot: {
+        price: null,
+        ts: Date.UTC(2026, 3, 14),
+        extractorPath: 'unknown' as const,
+        status: 'failed' as const,
+        errorClass: 'network' as const,
+        errorMessage: 'Failed to fetch',
+      },
+    };
+    await setProduct(product);
+    const now = Date.UTC(2026, 3, 15);
+
+    await processProductCheck(product.id, {
+      now,
+      jitterMs: 0,
+      fetchHtml: async () => {
+        throw new TypeError('Failed to fetch');
+      },
+    });
+
+    expect((await getProduct(product.id))?.nextCheckAt).toBe(now + 12 * 60 * 60 * 1000);
+  });
+
   it('notifies once after a successful new-low price check', async () => {
     await initializeStorage();
     const product = productFixture();
