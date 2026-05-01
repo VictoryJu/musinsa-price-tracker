@@ -96,6 +96,25 @@ describe('extractProductPrice', () => {
     expect(result.status).toBe('ok');
   });
 
+  it('ignores member coupon and app-only prices when choosing a generic price', async () => {
+    const page = doc(`
+      <html>
+        <body>
+          <span class="member-price" data-price="35000">회원가 35,000${KRW}</span>
+          <span class="coupon-price" data-price="33000">쿠폰 적용가 33,000${KRW}</span>
+          <span class="app-price" data-price="31000">앱 전용가 31,000${KRW}</span>
+          <span class="price">49,900${KRW}</span>
+        </body>
+      </html>
+    `);
+
+    const result = await extractProductPrice(page, { now: 1 });
+
+    expect(result.extractorPath).toBe('css-selector');
+    expect(result.price).toBe(49900);
+    expect(result.status).toBe('ok');
+  });
+
   it('returns soldOut when sold-out text is visible', async () => {
     const page = doc(`
       <html>

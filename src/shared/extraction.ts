@@ -138,6 +138,7 @@ function findFirstValidPrice(document: Document, selectors: string[]): number | 
   for (const selector of selectors) {
     const elements = Array.from(document.querySelectorAll(selector));
     for (const element of elements) {
+      if (isConditionalPriceElement(element)) continue;
       const attrPrice = element.getAttribute('data-price');
       const price = parsePrice(attrPrice ?? element.textContent ?? '');
       if (price !== null && isValidPrice(price)) return price;
@@ -145,6 +146,23 @@ function findFirstValidPrice(document: Document, selectors: string[]): number | 
   }
 
   return null;
+}
+
+function isConditionalPriceElement(element: Element): boolean {
+  const markerText = [
+    element.className,
+    element.id,
+    element.getAttribute('data-testid'),
+    element.getAttribute('data-price-type'),
+    element.textContent,
+    element.parentElement?.className,
+    element.parentElement?.id,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+
+  return ['member', 'coupon', 'app', '회원', '쿠폰', '앱'].some((marker) => markerText.includes(marker));
 }
 
 function extractJsonLdPrice(document: Document): number | null {
