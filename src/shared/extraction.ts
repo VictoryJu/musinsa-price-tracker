@@ -24,9 +24,19 @@ export async function extractProductPrice(
     };
   }
 
+  const salePrice = extractVisibleSalePrice(document);
   const jsonLdPrice = extractJsonLdPrice(document);
 
   if (jsonLdPrice !== null && isValidPrice(jsonLdPrice) && isPriceVisible(document, jsonLdPrice)) {
+    if (salePrice !== null && salePrice !== jsonLdPrice) {
+      return {
+        price: salePrice,
+        ts,
+        extractorPath: 'css-selector',
+        status: 'ok',
+      };
+    }
+
     return {
       price: jsonLdPrice,
       ts,
@@ -105,15 +115,23 @@ function findApiPrice(value: unknown): number | null {
 }
 
 function extractCssPrice(document: Document): number | null {
+  return extractVisibleSalePrice(document) ?? extractVisibleGenericPrice(document);
+}
+
+function extractVisibleSalePrice(document: Document): number | null {
   const saleSelectors = [
     '[data-price-type="sale"]',
     '[data-testid="sale-price"]',
     '.sale-price',
     '[class*="sale"][class*="price"]',
   ];
-  const genericSelectors = ['[data-price]', '[data-testid="price"]', '.price'];
 
-  return findFirstValidPrice(document, saleSelectors) ?? findFirstValidPrice(document, genericSelectors);
+  return findFirstValidPrice(document, saleSelectors);
+}
+
+function extractVisibleGenericPrice(document: Document): number | null {
+  const genericSelectors = ['[data-price]', '[data-testid="price"]', '.price'];
+  return findFirstValidPrice(document, genericSelectors);
 }
 
 function findFirstValidPrice(document: Document, selectors: string[]): number | null {

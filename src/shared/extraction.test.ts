@@ -72,6 +72,30 @@ describe('extractProductPrice', () => {
     expect(result.status).toBe('ok');
   });
 
+  it('prefers visible sale price over JSON-LD list price when both are visible', async () => {
+    const page = doc(`
+      <html>
+        <body>
+          <script type="application/ld+json">
+            {
+              "@context": "https://schema.org",
+              "@type": "Product",
+              "offers": { "@type": "Offer", "price": "49900" }
+            }
+          </script>
+          <span class="price">49,900${KRW}</span>
+          <strong class="sale-price">37,700${KRW}</strong>
+        </body>
+      </html>
+    `);
+
+    const result = await extractProductPrice(page, { now: 1 });
+
+    expect(result.extractorPath).toBe('css-selector');
+    expect(result.price).toBe(37700);
+    expect(result.status).toBe('ok');
+  });
+
   it('returns soldOut when sold-out text is visible', async () => {
     const page = doc(`
       <html>
