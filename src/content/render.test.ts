@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Product } from '../shared/types';
 import { renderProductUi } from './render';
 
@@ -32,6 +32,10 @@ function productFixture(overrides: Partial<Product> = {}): Product {
 }
 
 describe('renderProductUi', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('renders only a minimal tracking CTA for untracked products', () => {
     const onTrackStart = vi.fn();
     const result = renderProductUi({
@@ -72,5 +76,66 @@ describe('renderProductUi', () => {
     });
 
     expect(result.durationMs).toBeLessThan(50);
+  });
+
+  it('mounts tooltip only after the configured hover delay using cached history', () => {
+    vi.useFakeTimers();
+    renderProductUi({
+      root: document,
+      productId: '3674341',
+      product: productFixture(),
+      onTrackStart: vi.fn(),
+      hoverDelayMs: 300,
+      historySamples: [{ ts: 1, price: 37700, status: 'ok' }],
+    });
+
+    const mount = document.querySelector('[data-musinsa-price-tracker]');
+    mount?.dispatchEvent(new MouseEvent('mouseenter'));
+    vi.advanceTimersByTime(299);
+    expect(mount?.shadowRoot?.querySelector('[data-tooltip]')).toBeNull();
+
+    vi.advanceTimersByTime(1);
+    expect(mount?.shadowRoot?.querySelector('[data-tooltip]')?.textContent).toContain('1 samples');
+  });
+
+  it('does not mount tooltip when mouse leaves before the hover delay', () => {
+    vi.useFakeTimers();
+    renderProductUi({
+      root: document,
+      productId: '3674341',
+      product: productFixture(),
+      onTrackStart: vi.fn(),
+      hoverDelayMs: 300,
+      historySamples: [{ ts: 1, price: 37700, status: 'ok' }],
+    });
+
+    const mount = document.querySelector('[data-musinsa-price-tracker]');
+    mount?.dispatchEvent(new MouseEvent('mouseenter'));
+    mount?.dispatchEvent(new MouseEvent('mouseleave'));
+    vi.advanceTimersByTime(300);
+
+    expect(mount?.shadowRoot?.querySelector('[data-tooltip]')).toBeNull();
+  });
+
+  it('does not mount sparkline after quick hover passes', () => {
+    vi.useFakeTimers();
+    renderProductUi({
+      root: document,
+      productId: '3674341',
+      product: productFixture(),
+      onTrackStart: vi.fn(),
+      hoverDelayMs: 300,
+      historySamples: [{ ts: 1, price: 37700, status: 'ok' }],
+    });
+
+    const mount = document.querySelector('[data-musinsa-price-tracker]');
+    for (let i = 0; i < 10; i += 1) {
+      mount?.dispatchEvent(new MouseEvent('mouseenter'));
+      vi.advanceTimersByTime(50);
+      mount?.dispatchEvent(new MouseEvent('mouseleave'));
+    }
+    vi.advanceTimersByTime(300);
+
+    expect(mount?.shadowRoot?.querySelector('[data-sparkline]')).toBeNull();
   });
 });

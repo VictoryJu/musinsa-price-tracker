@@ -1,11 +1,13 @@
 import { formatSnapshotLabel } from '../shared/presentation';
-import type { Product } from '../shared/types';
+import type { HistorySample, Product } from '../shared/types';
 
 export interface RenderProductUiOptions {
   root: Document;
   productId: string;
   product: Product | null;
   onTrackStart: () => void;
+  hoverDelayMs?: number;
+  historySamples?: HistorySample[];
 }
 
 export interface RenderProductUiResult {
@@ -35,11 +37,37 @@ export function renderProductUi(options: RenderProductUiOptions): RenderProductU
   label.textContent = formatSnapshotLabel(options.product.currentSnapshot);
   shadow.append(label);
   mount.setAttribute('data-hover-mounted', 'true');
-  mount.addEventListener('mouseenter', () => undefined);
+  attachDelayedTooltip(mount, shadow, options);
 
   return { mode: 'tracked', durationMs: performance.now() - startedAt };
 }
 
 function removeExistingMount(root: Document): void {
   root.querySelector('[data-musinsa-price-tracker]')?.remove();
+}
+
+function attachDelayedTooltip(mount: HTMLElement, shadow: ShadowRoot, options: RenderProductUiOptions): void {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const delay = options.hoverDelayMs ?? 300;
+  const historySamples = options.historySamples ?? [];
+
+  mount.addEventListener('mouseenter', () => {
+    timer = setTimeout(() => {
+      if (shadow.querySelector('[data-tooltip]')) return;
+
+      const tooltip = document.createElement('aside');
+      tooltip.dataset.tooltip = 'true';
+      tooltip.textContent = `${historySamples.length} samples`;
+
+      const sparkline = document.createElement('span');
+      sparkline.dataset.sparkline = 'true';
+      tooltip.append(sparkline);
+      shadow.append(tooltip);
+    }, delay);
+  });
+
+  mount.addEventListener('mouseleave', () => {
+    if (timer) clearTimeout(timer);
+    timer = null;
+  });
 }
