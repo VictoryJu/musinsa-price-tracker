@@ -7,7 +7,7 @@ import {
   recomputeAndStoreStats,
   setProduct,
 } from '../shared/storage';
-import type { CurrentSnapshot } from '../shared/types';
+import type { CurrentSnapshot, SnapshotErrorClass } from '../shared/types';
 import { maybeNotifyNewLow, type MaybeNotifyNewLowOptions } from './notifications';
 import { computeNextCheckAt } from './scheduler';
 
@@ -66,7 +66,23 @@ async function getSnapshot(
       ts: options.now,
       extractorPath: 'unknown',
       status: 'failed',
+      errorClass: classifyFetchError(error),
       errorMessage: error.message,
     };
   }
+}
+
+function classifyFetchError(error: Error): SnapshotErrorClass {
+  const message = error.message.toLowerCase();
+  if (message.includes('blocked')) return 'blocked';
+
+  const status = message.match(/\b([45]\d{2})\b/)?.[1];
+  if (status?.startsWith('4')) return 'http4xx';
+  if (status?.startsWith('5')) return 'http5xx';
+
+  if (error instanceof TypeError || message.includes('failed to fetch') || message.includes('network')) {
+    return 'network';
+  }
+
+  return 'unknown';
 }

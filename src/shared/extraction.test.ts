@@ -226,6 +226,7 @@ describe('extractProductPrice', () => {
       ts: 1,
       extractorPath: 'unknown',
       status: 'failed',
+      errorClass: 'parse',
       errorMessage: 'Unable to extract price',
     });
   });
@@ -278,6 +279,7 @@ describe('extractProductPrice', () => {
       ts: 1,
       extractorPath: 'unknown',
       status: 'failed',
+      errorClass: 'parse',
       errorMessage: 'Unable to extract price',
     });
   });

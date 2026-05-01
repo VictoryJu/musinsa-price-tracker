@@ -7,6 +7,8 @@ export type SampleStatus = 'ok' | 'soldOut' | 'failed';
 
 export type ExtractorPath = 'json-ld' | 'css-selector' | 'internal-api' | 'unknown';
 
+export type SnapshotErrorClass = 'network' | 'http4xx' | 'http5xx' | 'parse' | 'blocked' | 'unknown';
+
 export interface HistorySample {
   ts: number;
   price: number | null;
@@ -20,6 +22,7 @@ export interface CurrentSnapshot {
   status: SampleStatus;
   errorMessage?: string;
   variantNotice?: string;
+  errorClass?: SnapshotErrorClass;
 }
 
 export interface Stats {

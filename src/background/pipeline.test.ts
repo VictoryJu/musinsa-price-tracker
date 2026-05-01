@@ -101,6 +101,7 @@ describe('processProductCheck', () => {
       ts: now,
       extractorPath: 'unknown',
       status: 'failed',
+      errorClass: 'blocked',
       errorMessage: 'fetch blocked',
     });
     expect(stored?.lastCheckedAt).toBe(now);
@@ -108,6 +109,33 @@ describe('processProductCheck', () => {
 
     const history = await getHistoryChunk(product.id, '2026-04');
     expect(history).toEqual([{ ts: now, price: null, status: 'failed' }]);
+  });
+
+  it.each([
+    ['network', new TypeError('Failed to fetch')],
+    ['http4xx', new Error('Fetch failed: 404')],
+    ['http5xx', new Error('Fetch failed: 503')],
+    ['blocked', new Error('fetch blocked by bot protection')],
+  ] as const)('classifies %s fetch failures', async (errorClass, error) => {
+    await initializeStorage();
+    const product = productFixture();
+    await setProduct(product);
+    const now = Date.UTC(2026, 3, 15);
+
+    await processProductCheck(product.id, {
+      now,
+      fetchHtml: async () => {
+        throw error;
+      },
+    });
+
+    expect((await getProduct(product.id))?.currentSnapshot).toMatchObject({
+      price: null,
+      ts: now,
+      extractorPath: 'unknown',
+      status: 'failed',
+      errorClass,
+    });
   });
 
   it('notifies once after a successful new-low price check', async () => {
