@@ -100,6 +100,48 @@ describe('storage foundation', () => {
     expect(chunk.map((sample) => sample.price)).toEqual([35000, 37000]);
   });
 
+  it('replaces an existing history sample with the same timestamp', async () => {
+    await initializeStorage();
+    const id = '3674341';
+    const ts = Date.UTC(2026, 3, 20);
+
+    await expect(appendHistorySample(id, { ts, price: 37000, status: 'ok' })).resolves.toBe(true);
+    await expect(appendHistorySample(id, { ts, price: 36000, status: 'ok' })).resolves.toBe(true);
+
+    expect(await getHistoryChunk(id, '2026-04')).toEqual([{ ts, price: 36000, status: 'ok' }]);
+  });
+
+  it('rejects a stale history sample older than product lastCheckedAt minus default tolerance', async () => {
+    await initializeStorage();
+    const product = { ...productFixture(), lastCheckedAt: Date.UTC(2026, 3, 20) };
+    await setProduct(product);
+
+    await expect(
+      appendHistorySample(product.id, {
+        ts: Date.UTC(2026, 3, 18, 23, 59),
+        price: 35000,
+        status: 'ok',
+      })
+    ).resolves.toBe(false);
+
+    expect(await getHistoryChunk(product.id, '2026-04')).toEqual([]);
+  });
+
+  it('accepts a stale history sample inside an overridden tolerance', async () => {
+    await initializeStorage();
+    const product = { ...productFixture(), lastCheckedAt: Date.UTC(2026, 3, 20) };
+    await setProduct(product);
+    const sample = {
+      ts: Date.UTC(2026, 3, 18, 23, 59),
+      price: 35000,
+      status: 'ok' as const,
+    };
+
+    await expect(appendHistorySample(product.id, sample, { staleToleranceMs: 2 * day })).resolves.toBe(true);
+
+    expect(await getHistoryChunk(product.id, '2026-04')).toEqual([sample]);
+  });
+
   it('lists only matching history chunks for the requested product', async () => {
     await initializeStorage();
     await appendHistorySample('3674341', { ts: Date.UTC(2026, 3, 20), price: 37000, status: 'ok' });

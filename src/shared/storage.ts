@@ -146,11 +146,22 @@ export async function getHistoryChunk(productId: string, yearMonth: string): Pro
   return Array.isArray(result[key]) ? ([...(result[key] as HistorySample[])] as HistorySample[]) : [];
 }
 
-export async function appendHistorySample(productId: string, sample: HistorySample): Promise<void> {
+export async function appendHistorySample(
+  productId: string,
+  sample: HistorySample,
+  options: { staleToleranceMs?: number } = {}
+): Promise<boolean> {
+  const product = await getProduct(productId);
+  const staleToleranceMs = options.staleToleranceMs ?? 24 * 60 * 60 * 1000;
+  if (product && sample.ts < product.lastCheckedAt - staleToleranceMs) {
+    return false;
+  }
+
   const key = historyChunkKey(productId, sample.ts);
   const chunk = await getHistoryChunk(productId, getYearMonth(sample.ts));
-  const nextChunk = [...chunk, sample].sort((a, b) => a.ts - b.ts);
+  const nextChunk = [...chunk.filter((existing) => existing.ts !== sample.ts), sample].sort((a, b) => a.ts - b.ts);
   await chrome.storage.local.set({ [key]: nextChunk });
+  return true;
 }
 
 export async function listHistoryChunkKeys(productId: string): Promise<HistoryChunkKey[]> {
