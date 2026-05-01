@@ -49,7 +49,9 @@ export async function processProductCheck(productId: string, options: ProcessPro
     status: snapshot.status,
   });
 
-  await recomputeAndStoreStats(productId, options.now);
+  if (snapshot.status !== 'failed') {
+    await recomputeAndStoreStats(productId, options.now);
+  }
   await maybeNotifyNewLow(productId, { notify: options.notify });
   await pruneHistory(productId, settings.retentionDays, options.now);
 }

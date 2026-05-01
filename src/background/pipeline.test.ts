@@ -111,6 +111,39 @@ describe('processProductCheck', () => {
     expect(history).toEqual([{ ts: now, price: null, status: 'failed' }]);
   });
 
+  it('does not recompute stats during a failed fetch', async () => {
+    await initializeStorage();
+    const existingStats = {
+      allTimeLow: { price: 35000, ts: Date.UTC(2026, 3, 10) },
+      avg30d: 36000,
+      min30d: 35000,
+      max30d: 39000,
+      samplesIn30d: 12,
+      lastComputedAt: Date.UTC(2026, 3, 14),
+    };
+    const product = {
+      ...productFixture(),
+      currentSnapshot: {
+        price: 36000,
+        ts: Date.UTC(2026, 3, 14),
+        extractorPath: 'json-ld' as const,
+        status: 'ok' as const,
+      },
+      stats: existingStats,
+    };
+    await setProduct(product);
+    const now = Date.UTC(2026, 3, 15);
+
+    await processProductCheck(product.id, {
+      now,
+      fetchHtml: async () => {
+        throw new Error('fetch blocked');
+      },
+    });
+
+    expect((await getProduct(product.id))?.stats).toEqual(existingStats);
+  });
+
   it.each([
     ['network', new TypeError('Failed to fetch')],
     ['http4xx', new Error('Fetch failed: 404')],
