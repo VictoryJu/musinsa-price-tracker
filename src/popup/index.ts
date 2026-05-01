@@ -1,6 +1,7 @@
 import { createRefreshNowMessage } from '../shared/messages';
 import { formatSnapshotLabel } from '../shared/presentation';
 import { formatPrice } from '../shared/price';
+import { clearStorage, getStorageSnapshot, replaceStorageSnapshot } from '../shared/storage';
 import type { ProductsMap } from '../shared/types';
 
 void renderPopup(document);
@@ -47,7 +48,7 @@ export async function renderPopup(root: Document): Promise<void> {
 }
 
 export async function exportStorageSnapshot(): Promise<string> {
-  return JSON.stringify(await chrome.storage.local.get(null), null, 2);
+  return JSON.stringify(await getStorageSnapshot(), null, 2);
 }
 
 export async function importStorageSnapshot(
@@ -58,15 +59,14 @@ export async function importStorageSnapshot(
   if (!isValidBackup(parsed)) throw new Error('Invalid backup schema');
   if (!confirmImport('Replace all extension data with this backup?')) return;
 
-  await chrome.storage.local.clear();
-  await chrome.storage.local.set(parsed);
+  await replaceStorageSnapshot(parsed);
 }
 
 export async function resetStorage(
   confirmReset: (message: string) => boolean = (message) => window.confirm(message)
 ): Promise<void> {
   if (!confirmReset('Clear all Musinsa Price Tracker data?')) return;
-  await chrome.storage.local.clear();
+  await clearStorage();
 }
 
 function renderSettingsActions(root: Document, settings: Element | null): void {

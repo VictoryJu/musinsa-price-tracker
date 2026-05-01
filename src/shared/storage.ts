@@ -91,6 +91,19 @@ export async function setSettings(settings: Settings): Promise<void> {
   });
 }
 
+export async function getStorageSnapshot(): Promise<Record<string, unknown>> {
+  return chrome.storage.local.get(null);
+}
+
+export async function replaceStorageSnapshot(snapshot: Record<string, unknown>): Promise<void> {
+  await chrome.storage.local.clear();
+  await chrome.storage.local.set(snapshot);
+}
+
+export async function clearStorage(): Promise<void> {
+  await chrome.storage.local.clear();
+}
+
 export async function getAllProducts(): Promise<Product[]> {
   return Object.values(await getProductsMap());
 }
