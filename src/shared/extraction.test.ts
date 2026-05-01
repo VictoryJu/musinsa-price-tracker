@@ -115,6 +115,29 @@ describe('extractProductPrice', () => {
     expect(result.status).toBe('ok');
   });
 
+  it('flags variant sale prices while tracking the lowest representative sale price', async () => {
+    const page = doc(`
+      <html>
+        <body>
+          <button data-option="S">
+            <strong class="sale-price">37,700${KRW}</strong>
+          </button>
+          <button data-option="M">
+            <strong class="sale-price">39,900${KRW}</strong>
+          </button>
+        </body>
+      </html>
+    `);
+
+    await expect(extractProductPrice(page, { now: 1 })).resolves.toEqual({
+      price: 37700,
+      ts: 1,
+      extractorPath: 'css-selector',
+      status: 'ok',
+      variantNotice: 'Variant prices detected',
+    });
+  });
+
   it('returns soldOut when sold-out text is visible', async () => {
     const page = doc(`
       <html>

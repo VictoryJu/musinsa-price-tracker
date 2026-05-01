@@ -19,6 +19,7 @@ export interface CurrentSnapshot {
   extractorPath: ExtractorPath;
   status: SampleStatus;
   errorMessage?: string;
+  variantNotice?: string;
 }
 
 export interface Stats {

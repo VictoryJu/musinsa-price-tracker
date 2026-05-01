@@ -24,7 +24,9 @@ export async function extractProductPrice(
     };
   }
 
-  const salePrice = extractVisibleSalePrice(document);
+  const salePrices = extractVisibleSalePrices(document);
+  const salePrice = salePrices[0] ?? null;
+  const variantNotice = hasVariantSalePrices(salePrices) ? 'Variant prices detected' : undefined;
   const jsonLdPrice = extractJsonLdPrice(document);
 
   if (jsonLdPrice !== null && isValidPrice(jsonLdPrice) && isPriceVisible(document, jsonLdPrice)) {
@@ -34,6 +36,7 @@ export async function extractProductPrice(
         ts,
         extractorPath: 'css-selector',
         status: 'ok',
+        ...(variantNotice ? { variantNotice } : {}),
       };
     }
 
@@ -52,6 +55,7 @@ export async function extractProductPrice(
       ts,
       extractorPath: 'css-selector',
       status: 'ok',
+      ...(variantNotice ? { variantNotice } : {}),
     };
   }
 
@@ -115,10 +119,10 @@ function findApiPrice(value: unknown): number | null {
 }
 
 function extractCssPrice(document: Document): number | null {
-  return extractVisibleSalePrice(document) ?? extractVisibleGenericPrice(document);
+  return extractVisibleSalePrices(document)[0] ?? extractVisibleGenericPrice(document);
 }
 
-function extractVisibleSalePrice(document: Document): number | null {
+function extractVisibleSalePrices(document: Document): number[] {
   const saleSelectors = [
     '[data-price-type="sale"]',
     '[data-testid="sale-price"]',
@@ -126,7 +130,7 @@ function extractVisibleSalePrice(document: Document): number | null {
     '[class*="sale"][class*="price"]',
   ];
 
-  return findFirstValidPrice(document, saleSelectors);
+  return findValidPrices(document, saleSelectors);
 }
 
 function extractVisibleGenericPrice(document: Document): number | null {
@@ -135,17 +139,26 @@ function extractVisibleGenericPrice(document: Document): number | null {
 }
 
 function findFirstValidPrice(document: Document, selectors: string[]): number | null {
+  return findValidPrices(document, selectors)[0] ?? null;
+}
+
+function findValidPrices(document: Document, selectors: string[]): number[] {
+  const prices: number[] = [];
   for (const selector of selectors) {
     const elements = Array.from(document.querySelectorAll(selector));
     for (const element of elements) {
       if (isConditionalPriceElement(element)) continue;
       const attrPrice = element.getAttribute('data-price');
       const price = parsePrice(attrPrice ?? element.textContent ?? '');
-      if (price !== null && isValidPrice(price)) return price;
+      if (price !== null && isValidPrice(price)) prices.push(price);
     }
   }
 
-  return null;
+  return [...new Set(prices)].sort((a, b) => a - b);
+}
+
+function hasVariantSalePrices(prices: number[]): boolean {
+  return new Set(prices).size > 1;
 }
 
 function isConditionalPriceElement(element: Element): boolean {
