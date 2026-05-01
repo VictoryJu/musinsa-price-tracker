@@ -111,6 +111,26 @@ describe('processProductCheck', () => {
     expect(history).toEqual([{ ts: now, price: null, status: 'failed' }]);
   });
 
+  it('loads remote config and applies the internal API kill switch during extraction', async () => {
+    await initializeStorage();
+    const product = productFixture();
+    await setProduct(product);
+    const now = Date.UTC(2026, 3, 15);
+    const fetchJson = vi.fn(async () => ({ disabledExtractorPaths: ['internal-api'] }));
+
+    await processProductCheck(product.id, {
+      now,
+      fetchHtml: async () => '<html><body><h1>No price</h1></body></html>',
+      fetchJson,
+    });
+
+    expect(fetchJson).toHaveBeenCalledOnce();
+    expect((await getProduct(product.id))?.currentSnapshot).toMatchObject({
+      status: 'failed',
+      extractorPath: 'unknown',
+    });
+  });
+
   it('does not recompute stats during a failed fetch', async () => {
     await initializeStorage();
     const existingStats = {

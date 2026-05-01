@@ -9,11 +9,13 @@ let runInProgress = false;
 export interface RunDueProductBatchOptions {
   now?: number;
   fetchHtml: (url: string) => Promise<string>;
+  fetchJson?: (url: string) => Promise<unknown>;
   jitterMs?: number;
 }
 
 export interface RegisterBackgroundSchedulerOptions {
   fetchHtml: (url: string) => Promise<string>;
+  fetchJson?: (url: string) => Promise<unknown>;
 }
 
 export function computeNextCheckAt(now: number, fetchIntervalHours: number, jitterMs: number): number {
@@ -42,6 +44,7 @@ export async function runDueProductBatch(
     await processProductCheck(due.id, {
       now,
       fetchHtml: options.fetchHtml,
+      fetchJson: options.fetchJson,
       jitterMs: options.jitterMs,
     });
 
@@ -55,7 +58,7 @@ export function registerBackgroundScheduler(options: RegisterBackgroundScheduler
   chrome.alarms.create(ALARM_NAME, { periodInMinutes: 1 });
 
   const run = (): void => {
-    void runDueProductBatch({ fetchHtml: options.fetchHtml });
+    void runDueProductBatch({ fetchHtml: options.fetchHtml, fetchJson: options.fetchJson });
   };
 
   chrome.runtime.onInstalled.addListener(run);

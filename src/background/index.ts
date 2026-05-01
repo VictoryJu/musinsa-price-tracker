@@ -10,8 +10,17 @@ const fetchHtml = async (url: string): Promise<string> => {
   return response.text();
 };
 
+const fetchJson = async (url: string): Promise<unknown> => {
+  const response = await fetch(url, { credentials: 'include' });
+  if (!response.ok) {
+    throw new Error(`Fetch failed: ${response.status}`);
+  }
+  return response.json();
+};
+
 export interface RegisterBackgroundServicesOptions {
   fetchHtml: (url: string) => Promise<string>;
+  fetchJson?: (url: string) => Promise<unknown>;
   now?: () => number;
 }
 
@@ -21,12 +30,14 @@ export function registerBackgroundServices(options: RegisterBackgroundServicesOp
       processProductCheck(productId, {
         now: options.now?.() ?? Date.now(),
         fetchHtml: options.fetchHtml,
+        fetchJson: options.fetchJson,
       }),
     resolveCanonicalUrl: resolveFinalProductUrl,
   });
 
   registerBackgroundScheduler({
     fetchHtml: options.fetchHtml,
+    fetchJson: options.fetchJson,
   });
 }
 
@@ -39,4 +50,4 @@ export async function resolveFinalProductUrl(url: string): Promise<string> {
   return response.url || url;
 }
 
-registerBackgroundServices({ fetchHtml });
+registerBackgroundServices({ fetchHtml, fetchJson });

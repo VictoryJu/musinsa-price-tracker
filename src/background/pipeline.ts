@@ -1,4 +1,5 @@
 import { extractProductPrice } from '../shared/extraction';
+import { loadRemoteConfig } from '../shared/remote-config';
 import {
   appendHistorySample,
   getProduct,
@@ -17,6 +18,7 @@ const RETRY_DELAY_MS = 5 * 60 * 1000;
 export interface ProcessProductCheckOptions {
   now: number;
   fetchHtml: (url: string) => Promise<string>;
+  fetchJson?: (url: string) => Promise<unknown>;
   jitterMs?: number;
   notify?: MaybeNotifyNewLowOptions['notify'];
 }
@@ -64,7 +66,10 @@ async function getSnapshot(
   try {
     const html = await options.fetchHtml(canonicalUrl);
     const document = new DOMParser().parseFromString(html, 'text/html');
-    return await extractProductPrice(document, { now: options.now, productId });
+    const remoteConfig = options.fetchJson
+      ? await loadRemoteConfig({ now: options.now, fetchJson: options.fetchJson })
+      : undefined;
+    return await extractProductPrice(document, { now: options.now, productId, fetchJson: options.fetchJson, remoteConfig });
   } catch (err) {
     const error = err instanceof Error ? err : new Error(String(err));
     return {
