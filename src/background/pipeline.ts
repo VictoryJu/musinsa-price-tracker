@@ -11,6 +11,8 @@ import type { CurrentSnapshot } from '../shared/types';
 import { maybeNotifyNewLow, type MaybeNotifyNewLowOptions } from './notifications';
 import { computeNextCheckAt } from './scheduler';
 
+const STALE_SAMPLE_TOLERANCE_MS = 24 * 60 * 60 * 1000;
+
 export interface ProcessProductCheckOptions {
   now: number;
   fetchHtml: (url: string) => Promise<string>;
@@ -25,6 +27,10 @@ export async function processProductCheck(productId: string, options: ProcessPro
   const settings = await getSettings();
   const nextCheckAt = computeNextCheckAt(options.now, settings.fetchIntervalHours, options.jitterMs ?? 0);
   const snapshot = await getSnapshot(product.canonicalUrl, productId, options);
+
+  if (snapshot.ts < product.lastCheckedAt - STALE_SAMPLE_TOLERANCE_MS) {
+    return;
+  }
 
   await setProduct({
     ...product,

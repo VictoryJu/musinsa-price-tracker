@@ -126,4 +126,31 @@ describe('processProductCheck', () => {
     expect(notify).toHaveBeenCalledOnce();
     expect((await getProduct(product.id))?.lastNotified).toEqual({ price: 30000, ts: now });
   });
+
+  it('ignores stale price checks older than the product lastCheckedAt tolerance', async () => {
+    await initializeStorage();
+    const previousSnapshot = {
+      price: 41000,
+      ts: Date.UTC(2026, 3, 20),
+      extractorPath: 'json-ld' as const,
+      status: 'ok' as const,
+    };
+    const product = productFixture();
+    await setProduct({
+      ...product,
+      currentSnapshot: previousSnapshot,
+      lastCheckedAt: Date.UTC(2026, 3, 20),
+    });
+    const notify = vi.fn();
+
+    await processProductCheck(product.id, {
+      now: Date.UTC(2026, 3, 18, 23, 59),
+      fetchHtml: async () => productHtml(30000),
+      notify,
+    });
+
+    expect(await getHistoryChunk(product.id, '2026-04')).toEqual([]);
+    expect((await getProduct(product.id))?.currentSnapshot).toEqual(previousSnapshot);
+    expect(notify).not.toHaveBeenCalled();
+  });
 });
