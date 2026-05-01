@@ -46,7 +46,7 @@ describe('bootstrapContentPage', () => {
   it('reads product storage and renders CTA for untracked product pages', async () => {
     await bootstrapContentPage(document, setLocation('/products/3674341'));
 
-    expect(chrome.storage.local.get).toHaveBeenCalledWith('products');
+    expect(chrome.storage.local.get).toHaveBeenCalledWith(null);
     expect(document.querySelector('button')?.textContent).toBe('추적 시작');
     expect(chrome.runtime.sendMessage).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -75,6 +75,28 @@ describe('bootstrapContentPage', () => {
     await bootstrapContentPage(document, setLocation('/products/3674341'));
 
     expect(document.querySelector('[data-musinsa-price-tracker]')?.shadowRoot?.textContent).toContain('37,700원');
+  });
+
+  it('preloads product history once and renders hover tooltip from cache', async () => {
+    vi.useFakeTimers();
+    (chrome.storage.local.get as unknown as Mock).mockResolvedValueOnce({
+      products: { '3674341': productFixture() },
+      '3674341:2026-04': [
+        { ts: 1, price: 37700, status: 'ok' },
+        { ts: 2, price: 38000, status: 'ok' },
+      ],
+      '999:2026-04': [{ ts: 1, price: 1, status: 'ok' }],
+    });
+
+    await bootstrapContentPage(document, setLocation('/products/3674341'));
+
+    const mount = document.querySelector('[data-musinsa-price-tracker]');
+    mount?.dispatchEvent(new MouseEvent('mouseenter'));
+    vi.advanceTimersByTime(300);
+
+    expect(chrome.storage.local.get).toHaveBeenCalledTimes(1);
+    expect(mount?.shadowRoot?.querySelector('[data-tooltip]')?.textContent).toContain('2 samples');
+    vi.useRealTimers();
   });
 
   it('does nothing on non-product pages', async () => {

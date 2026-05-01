@@ -1,12 +1,14 @@
 import { createLogVisitMessage, createTrackStartMessage } from '../shared/messages';
-import type { Product, ProductsMap } from '../shared/types';
+import type { HistorySample, Product, ProductsMap } from '../shared/types';
 import { renderProductUi } from './render';
 
 export async function bootstrapContentPage(root: Document, pageLocation: Location): Promise<void> {
   const productId = getProductId(pageLocation.pathname);
   if (!productId) return;
 
-  const product = await getTrackedProduct(productId);
+  const storage = await chrome.storage.local.get(null);
+  const product = getTrackedProductFromStorage(storage, productId);
+  const historySamples = getHistorySamplesFromStorage(storage, productId);
   const summary = {
     productId,
     canonicalUrl: `${pageLocation.origin}${pageLocation.pathname}`,
@@ -20,6 +22,7 @@ export async function bootstrapContentPage(root: Document, pageLocation: Locatio
     root,
     productId,
     product,
+    historySamples,
     onTrackStart: () => {
       void chrome.runtime.sendMessage(createTrackStartMessage(summary));
     },
@@ -34,10 +37,17 @@ function getOpenGraphImage(root: Document): string {
   return root.querySelector<HTMLMetaElement>('meta[property="og:image"]')?.content ?? '';
 }
 
-async function getTrackedProduct(productId: string): Promise<Product | null> {
-  const result = await chrome.storage.local.get('products');
-  const products = isProductsMap(result.products) ? result.products : {};
+function getTrackedProductFromStorage(storage: Record<string, unknown>, productId: string): Product | null {
+  const products = isProductsMap(storage.products) ? storage.products : {};
   return products[productId] ?? null;
+}
+
+function getHistorySamplesFromStorage(storage: Record<string, unknown>, productId: string): HistorySample[] {
+  const prefix = `${productId}:`;
+  return Object.entries(storage)
+    .filter(([key]) => key.startsWith(prefix) && /^\d{4}-\d{2}$/.test(key.slice(prefix.length)))
+    .flatMap(([, value]) => (Array.isArray(value) ? (value as HistorySample[]) : []))
+    .sort((left, right) => left.ts - right.ts);
 }
 
 function isProductsMap(value: unknown): value is ProductsMap {
