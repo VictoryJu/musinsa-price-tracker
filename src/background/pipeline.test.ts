@@ -153,4 +153,38 @@ describe('processProductCheck', () => {
     expect((await getProduct(product.id))?.currentSnapshot).toEqual(previousSnapshot);
     expect(notify).not.toHaveBeenCalled();
   });
+
+  it('persists restock transition from sold-out to ok and recomputes stats from ok samples', async () => {
+    await initializeStorage();
+    const product = productFixture();
+    const soldOutAt = Date.UTC(2026, 3, 14);
+    const restockedAt = Date.UTC(2026, 3, 15);
+    await setProduct({
+      ...product,
+      currentSnapshot: {
+        price: null,
+        ts: soldOutAt,
+        extractorPath: 'unknown',
+        status: 'soldOut',
+        errorMessage: 'Product is sold out',
+      },
+      lastCheckedAt: soldOutAt,
+    });
+
+    await processProductCheck(product.id, {
+      now: restockedAt,
+      fetchHtml: async () => productHtml(37700),
+    });
+
+    const stored = await getProduct(product.id);
+    expect(stored?.currentSnapshot).toEqual({
+      price: 37700,
+      ts: restockedAt,
+      extractorPath: 'json-ld',
+      status: 'ok',
+    });
+    expect(await getHistoryChunk(product.id, '2026-04')).toEqual([{ ts: restockedAt, price: 37700, status: 'ok' }]);
+    expect(stored?.stats.samplesIn30d).toBe(1);
+    expect(stored?.stats.allTimeLow).toEqual({ price: 37700, ts: restockedAt });
+  });
 });
