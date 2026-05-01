@@ -1,4 +1,5 @@
 import { formatSnapshotLabel } from '../shared/presentation';
+import { formatPrice } from '../shared/price';
 import type { HistorySample, Product } from '../shared/types';
 
 export interface RenderProductUiOptions {
@@ -10,6 +11,7 @@ export interface RenderProductUiOptions {
   hoverDelayMs?: number;
   historySamples?: HistorySample[];
   now?: number;
+  soakPeriodDays?: number;
 }
 
 export interface RenderProductUiResult {
@@ -28,7 +30,8 @@ export function renderProductUi(options: RenderProductUiOptions): RenderProductU
   if (!options.product) {
     const button = options.root.createElement('button');
     button.type = 'button';
-    button.textContent = '추적 시작';
+    button.textContent = '+';
+    button.setAttribute('aria-label', 'Track this product');
     button.addEventListener('click', options.onTrackStart);
     mount.append(button);
     return { mode: 'cta', durationMs: performance.now() - startedAt };
@@ -40,7 +43,7 @@ export function renderProductUi(options: RenderProductUiOptions): RenderProductU
 
   const label = options.root.createElement('span');
   label.dataset.snapshotLabel = 'true';
-  label.textContent = formatSnapshotLabel(options.product.currentSnapshot);
+  label.textContent = formatTrackingStateLabel(options.product, options);
   shadow.append(label);
   const staleBadge = createStaleBadge(options.product, options.now ?? Date.now());
   if (staleBadge) {
@@ -51,6 +54,26 @@ export function renderProductUi(options: RenderProductUiOptions): RenderProductU
   attachDelayedTooltip(mount, shadow, options);
 
   return { mode: 'tracked', durationMs: performance.now() - startedAt };
+}
+
+function formatTrackingStateLabel(product: Product, options: RenderProductUiOptions): string {
+  if (product.currentSnapshot.status !== 'ok') return formatSnapshotLabel(product.currentSnapshot);
+
+  const trackedDays = getTrackedDays(product.addedAt, options.now ?? Date.now());
+  const soakPeriodDays = options.soakPeriodDays ?? 14;
+  if (trackedDays <= soakPeriodDays) {
+    return `추적 중 ${trackedDays}일째 / D-${soakPeriodDays - trackedDays}`;
+  }
+
+  const pieces = [formatSnapshotLabel(product.currentSnapshot)];
+  if (product.stats.allTimeLow) pieces.push(`최저 ${formatPrice(product.stats.allTimeLow.price)}`);
+  if (product.stats.avg30d !== null) pieces.push(`30일 평균 ${formatPrice(product.stats.avg30d)}`);
+  return pieces.join(' · ');
+}
+
+function getTrackedDays(addedAt: number, now: number): number {
+  const elapsedMs = Math.max(0, now - addedAt);
+  return Math.floor(elapsedMs / (24 * 60 * 60 * 1000)) + 1;
 }
 
 function getSnapshotState(product: Product): 'ok' | 'soldOut' | 'failed' | 'blocked' {

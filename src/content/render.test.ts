@@ -53,22 +53,40 @@ describe('renderProductUi', () => {
     expect(result.mode).toBe('cta');
     expect(mount?.shadowRoot).toBeNull();
     expect(document.querySelectorAll('button')).toHaveLength(1);
-    expect(document.querySelector('button')?.textContent).toBe('추적 시작');
+    expect(document.querySelector('button')?.textContent).toBe('+');
+    expect(document.querySelector('button')?.getAttribute('aria-label')).toBe('Track this product');
     expect(mount?.getAttribute('data-hover-mounted')).toBeNull();
   });
 
   it('renders tracked products with a shadow label and hover marker', () => {
+    const now = Date.UTC(2026, 4, 1);
     const result = renderProductUi({
       root: document,
       productId: '3674341',
-      product: productFixture(),
+      product: productFixture({ addedAt: now - 20 * 24 * 60 * 60 * 1000, lastCheckedAt: now }),
       onTrackStart: vi.fn(),
+      now,
     });
 
     const mount = document.querySelector('[data-musinsa-price-tracker]');
     expect(result.mode).toBe('tracked');
-    expect(mount?.shadowRoot?.textContent).toContain('37,700원');
+    expect(mount?.shadowRoot?.textContent).toContain('37,700원 · 최저 37,700원 · 30일 평균 39,000원');
     expect(mount?.getAttribute('data-hover-mounted')).toBe('true');
+  });
+
+  it('renders soak-period tracking progress before active analysis', () => {
+    const now = Date.UTC(2026, 4, 10);
+    renderProductUi({
+      root: document,
+      productId: '3674341',
+      product: productFixture({ addedAt: now - 2 * 24 * 60 * 60 * 1000, lastCheckedAt: now }),
+      onTrackStart: vi.fn(),
+      now,
+      soakPeriodDays: 14,
+    });
+
+    const mount = document.querySelector('[data-musinsa-price-tracker]');
+    expect(mount?.shadowRoot?.querySelector('[data-snapshot-label]')?.textContent).toBe('추적 중 3일째 / D-11');
   });
 
   it('renders failed extraction with a distinct error state', () => {
