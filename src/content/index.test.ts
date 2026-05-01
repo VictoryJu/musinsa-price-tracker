@@ -1,8 +1,8 @@
-import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
 import type { Product } from '../shared/types';
 import { bootstrapContentPage } from './index';
 
-function productFixture(): Product {
+function productFixture(overrides: Partial<Product> = {}): Product {
   return {
     id: '3674341',
     canonicalUrl: 'https://www.musinsa.com/products/3674341',
@@ -27,6 +27,7 @@ function productFixture(): Product {
     lastNotified: null,
     nextCheckAt: 0,
     lastCheckedAt: 1,
+    ...overrides,
   };
 }
 
@@ -43,11 +44,16 @@ describe('bootstrapContentPage', () => {
     document.title = 'Test Hoodie';
   });
 
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('reads product storage and renders CTA for untracked product pages', async () => {
     await bootstrapContentPage(document, setLocation('/products/3674341'));
 
     expect(chrome.storage.local.get).toHaveBeenCalledWith(null);
-    expect(document.querySelector('button')?.textContent).toBe('추적 시작');
+    expect(document.querySelector('button')?.textContent).toBe('+');
+    expect(document.querySelector('button')?.getAttribute('aria-label')).toBe('Track this product');
     expect(chrome.runtime.sendMessage).toHaveBeenCalledWith(
       expect.objectContaining({
         type: 'LOG_VISIT',
@@ -77,6 +83,26 @@ describe('bootstrapContentPage', () => {
     expect(document.querySelector('[data-musinsa-price-tracker]')?.shadowRoot?.textContent).toContain('37,700원');
   });
 
+  it('uses stored settings to render soak progress on tracked pages', async () => {
+    vi.setSystemTime(new Date(Date.UTC(2026, 4, 10)));
+    (chrome.storage.local.get as unknown as Mock).mockResolvedValueOnce({
+      settings: { soakPeriodDays: 7 },
+      products: {
+        '3674341': productFixture({
+          addedAt: Date.UTC(2026, 4, 6),
+          lastCheckedAt: Date.UTC(2026, 4, 10),
+        }),
+      },
+    });
+
+    await bootstrapContentPage(document, setLocation('/products/3674341'));
+
+    expect(
+      document.querySelector('[data-musinsa-price-tracker]')?.shadowRoot?.querySelector('[data-snapshot-label]')
+        ?.textContent
+    ).toBe('추적 중 5일째 / D-2');
+  });
+
   it('preloads product history once and renders hover tooltip from cache', async () => {
     vi.useFakeTimers();
     (chrome.storage.local.get as unknown as Mock).mockResolvedValueOnce({
@@ -96,7 +122,6 @@ describe('bootstrapContentPage', () => {
 
     expect(chrome.storage.local.get).toHaveBeenCalledTimes(1);
     expect(mount?.shadowRoot?.querySelector('[data-tooltip]')?.textContent).toContain('2 samples');
-    vi.useRealTimers();
   });
 
   it('sends REFRESH_NOW from the inline hover tooltip', async () => {
@@ -121,7 +146,6 @@ describe('bootstrapContentPage', () => {
       type: 'REFRESH_NOW',
       payload: { productId: '3674341' },
     });
-    vi.useRealTimers();
   });
 
   it('does nothing on non-product pages', async () => {

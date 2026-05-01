@@ -1,5 +1,5 @@
 import { createLogVisitMessage, createRefreshNowMessage, createTrackStartMessage } from '../shared/messages';
-import type { HistorySample, Product, ProductsMap } from '../shared/types';
+import { DEFAULT_SETTINGS, type HistorySample, type Product, type ProductsMap } from '../shared/types';
 import { renderProductUi } from './render';
 
 export async function bootstrapContentPage(root: Document, pageLocation: Location): Promise<void> {
@@ -9,6 +9,7 @@ export async function bootstrapContentPage(root: Document, pageLocation: Locatio
   const storage = await chrome.storage.local.get(null);
   const product = getTrackedProductFromStorage(storage, productId);
   const historySamples = getHistorySamplesFromStorage(storage, productId);
+  const soakPeriodDays = getSoakPeriodDaysFromStorage(storage.settings);
   const summary = {
     productId,
     canonicalUrl: `${pageLocation.origin}${pageLocation.pathname}`,
@@ -24,6 +25,7 @@ export async function bootstrapContentPage(root: Document, pageLocation: Locatio
     product,
     historySamples,
     now: Date.now(),
+    soakPeriodDays,
     onTrackStart: () => {
       void chrome.runtime.sendMessage(createTrackStartMessage(summary));
     },
@@ -53,6 +55,15 @@ function getHistorySamplesFromStorage(storage: Record<string, unknown>, productI
 }
 
 function isProductsMap(value: unknown): value is ProductsMap {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function getSoakPeriodDaysFromStorage(value: unknown): number {
+  if (!isRecord(value)) return DEFAULT_SETTINGS.soakPeriodDays;
+  return typeof value.soakPeriodDays === 'number' ? value.soakPeriodDays : DEFAULT_SETTINGS.soakPeriodDays;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
