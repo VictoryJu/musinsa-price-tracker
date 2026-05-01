@@ -74,6 +74,24 @@ describe('renderProductUi', () => {
     expect(mount?.getAttribute('data-hover-mounted')).toBe('true');
   });
 
+  it('resets inherited page styles at the shadow host boundary', () => {
+    renderProductUi({
+      root: document,
+      productId: '3674341',
+      product: productFixture(),
+      onTrackStart: vi.fn(),
+    });
+
+    const style = document
+      .querySelector('[data-musinsa-price-tracker]')
+      ?.shadowRoot?.querySelector('[data-status-style]')?.textContent;
+    expect(style).toContain('all: initial');
+    expect(style).toContain('font-family:');
+    expect(style).toContain('color:');
+    expect(style).toContain('line-height:');
+    expect(style).toContain('font-size:');
+  });
+
   it('renders soak-period tracking progress before active analysis', () => {
     const now = Date.UTC(2026, 4, 10);
     renderProductUi({

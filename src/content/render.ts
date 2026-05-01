@@ -86,9 +86,14 @@ function createStatusStyle(): HTMLStyleElement {
   style.dataset.statusStyle = 'true';
   style.textContent = `
     :host {
+      all: initial;
       display: inline-flex;
       align-items: center;
       gap: 4px;
+      color: #111827;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 12px;
+      line-height: 1.3;
     }
     :host([data-state="failed"]) [data-snapshot-label],
     :host([data-state="blocked"]) [data-snapshot-label] {
