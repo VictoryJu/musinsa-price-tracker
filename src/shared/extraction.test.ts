@@ -256,6 +256,51 @@ describe('extractProductPrice', () => {
     });
   });
 
+  it('skips internal API extraction when remote config disables the path', async () => {
+    const page = doc(`
+      <html>
+        <body>
+          <h1>Test Hoodie</h1>
+        </body>
+      </html>
+    `);
+    const fetchJson = vi.fn(async () => ({ product: { salePrice: 37700 } }));
+
+    const result = await extractProductPrice(page, {
+      now: 1,
+      productId: '3674341',
+      fetchJson,
+      remoteConfig: { disabledExtractorPaths: ['internal-api'] },
+    });
+
+    expect(fetchJson).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      extractorPath: 'unknown',
+      status: 'failed',
+    });
+  });
+
+  it('uses remote selector hot updates before default selectors', async () => {
+    const page = doc(`
+      <html>
+        <body>
+          <strong data-hot-price="37700">37,700${KRW}</strong>
+        </body>
+      </html>
+    `);
+
+    await expect(
+      extractProductPrice(page, {
+        now: 1,
+        remoteConfig: { salePriceSelectors: ['[data-hot-price]'] },
+      })
+    ).resolves.toMatchObject({
+      price: 37700,
+      extractorPath: 'css-selector',
+      status: 'ok',
+    });
+  });
+
   it('returns failed when internal API fallback throws', async () => {
     const page = doc(`
       <html>

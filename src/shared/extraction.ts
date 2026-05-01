@@ -1,11 +1,18 @@
 import { parsePrice } from './price';
-import type { CurrentSnapshot } from './types';
+import type { CurrentSnapshot, ExtractorPath } from './types';
+
+export interface RemoteExtractionConfig {
+  disabledExtractorPaths?: ExtractorPath[];
+  salePriceSelectors?: string[];
+  genericPriceSelectors?: string[];
+}
 
 export interface ExtractProductPriceOptions {
   now?: number;
   productId?: string;
   apiEndpoint?: string;
   fetchJson?: (url: string) => Promise<unknown>;
+  remoteConfig?: RemoteExtractionConfig;
 }
 
 export async function extractProductPrice(
@@ -18,7 +25,7 @@ export async function extractProductPrice(
     return soldOutSnapshot(ts);
   }
 
-  const salePrices = extractVisibleSalePrices(document);
+  const salePrices = extractVisibleSalePrices(document, options.remoteConfig);
   const salePrice = salePrices[0] ?? null;
   const variantNotice = hasVariantSalePrices(salePrices) ? 'Variant prices detected' : undefined;
   if (isJsonLdSoldOut(document)) {
@@ -45,7 +52,7 @@ export async function extractProductPrice(
     };
   }
 
-  const cssPrice = extractCssPrice(document);
+  const cssPrice = extractCssPrice(document, options.remoteConfig);
   if (cssPrice !== null) {
     return {
       price: cssPrice,
@@ -56,7 +63,9 @@ export async function extractProductPrice(
     };
   }
 
-  const apiResult = await extractInternalApiResult(options);
+  const apiResult = isExtractorDisabled(options.remoteConfig, 'internal-api')
+    ? { price: null, soldOut: false }
+    : await extractInternalApiResult(options);
   if (apiResult.soldOut) {
     return soldOutSnapshot(ts);
   }
@@ -131,12 +140,13 @@ function findApiPrice(value: unknown): number | null {
   return null;
 }
 
-function extractCssPrice(document: Document): number | null {
-  return extractVisibleSalePrices(document)[0] ?? extractVisibleGenericPrice(document);
+function extractCssPrice(document: Document, remoteConfig?: RemoteExtractionConfig): number | null {
+  return extractVisibleSalePrices(document, remoteConfig)[0] ?? extractVisibleGenericPrice(document, remoteConfig);
 }
 
-function extractVisibleSalePrices(document: Document): number[] {
+function extractVisibleSalePrices(document: Document, remoteConfig?: RemoteExtractionConfig): number[] {
   const saleSelectors = [
+    ...(remoteConfig?.salePriceSelectors ?? []),
     '[data-price-type="sale"]',
     '[data-testid="sale-price"]',
     '.sale-price',
@@ -146,9 +156,13 @@ function extractVisibleSalePrices(document: Document): number[] {
   return findValidPrices(document, saleSelectors);
 }
 
-function extractVisibleGenericPrice(document: Document): number | null {
-  const genericSelectors = ['[data-price]', '[data-testid="price"]', '.price'];
+function extractVisibleGenericPrice(document: Document, remoteConfig?: RemoteExtractionConfig): number | null {
+  const genericSelectors = [...(remoteConfig?.genericPriceSelectors ?? []), '[data-price]', '[data-testid="price"]', '.price'];
   return findFirstValidPrice(document, genericSelectors);
+}
+
+function isExtractorDisabled(remoteConfig: RemoteExtractionConfig | undefined, path: ExtractorPath): boolean {
+  return remoteConfig?.disabledExtractorPaths?.includes(path) ?? false;
 }
 
 function findFirstValidPrice(document: Document, selectors: string[]): number | null {
