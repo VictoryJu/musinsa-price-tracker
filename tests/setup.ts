@@ -54,6 +54,7 @@ const mockStorage = new Map<string, unknown>();
     onMessage: {
       addListener: vi.fn(),
     },
+    sendMessage: vi.fn(async () => ({ ok: true })),
   },
   notifications: {
     create: vi.fn(),

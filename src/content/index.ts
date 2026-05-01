@@ -1,23 +1,49 @@
-import { createLogVisitMessage } from '../shared/messages';
+import { createLogVisitMessage, createTrackStartMessage } from '../shared/messages';
+import type { Product, ProductsMap } from '../shared/types';
+import { renderProductUi } from './render';
 
-const productId = getProductId(location.pathname);
+export async function bootstrapContentPage(root: Document, pageLocation: Location): Promise<void> {
+  const productId = getProductId(pageLocation.pathname);
+  if (!productId) return;
 
-if (productId) {
-  void chrome.runtime.sendMessage(
-    createLogVisitMessage({
-      productId,
-      canonicalUrl: `${location.origin}${location.pathname}`,
-      name: document.title || 'Musinsa product',
-      thumbnail: getOpenGraphImage(),
-      visitedAt: Date.now(),
-    })
-  );
+  const product = await getTrackedProduct(productId);
+  const summary = {
+    productId,
+    canonicalUrl: `${pageLocation.origin}${pageLocation.pathname}`,
+    name: root.title || 'Musinsa product',
+    thumbnail: getOpenGraphImage(root),
+  };
+
+  await chrome.runtime.sendMessage(createLogVisitMessage({ ...summary, visitedAt: Date.now() }));
+
+  renderProductUi({
+    root,
+    productId,
+    product,
+    onTrackStart: () => {
+      void chrome.runtime.sendMessage(createTrackStartMessage(summary));
+    },
+  });
 }
 
 function getProductId(pathname: string): string | null {
   return pathname.match(/\/products\/(\d+)/)?.[1] ?? null;
 }
 
-function getOpenGraphImage(): string {
-  return document.querySelector<HTMLMetaElement>('meta[property="og:image"]')?.content ?? '';
+function getOpenGraphImage(root: Document): string {
+  return root.querySelector<HTMLMetaElement>('meta[property="og:image"]')?.content ?? '';
+}
+
+async function getTrackedProduct(productId: string): Promise<Product | null> {
+  const result = await chrome.storage.local.get('products');
+  const products = isProductsMap(result.products) ? result.products : {};
+  return products[productId] ?? null;
+}
+
+function isProductsMap(value: unknown): value is ProductsMap {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+if (typeof window !== 'undefined') {
+  void bootstrapContentPage(document, window.location);
 }
