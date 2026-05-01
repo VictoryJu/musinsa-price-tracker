@@ -180,6 +180,51 @@ V1 distribution is dogfood-only as an unpacked extension. Chrome Web Store packa
 
 ---
 
+## Standard Issue Workflow
+
+Use this exact loop for every GitHub issue unless the user explicitly overrides it:
+
+1. Sync and inspect:
+   - Confirm `git status -sb`.
+   - Read the GitHub issue body and acceptance criteria.
+   - Check whether the issue is already satisfied by current code and tests.
+2. If already satisfied:
+   - Run the narrow verification that proves it.
+   - Close the issue with a short evidence comment.
+   - Do not create unnecessary code changes.
+3. If not satisfied:
+   - Use `superpowers:writing-plans`.
+   - Save a plan under `docs/superpowers/plans/YYYY-MM-DD-<issue-slug>.md`.
+   - Commit the plan with `docs: add <issue> plan`.
+4. Execute with TDD:
+   - Use `superpowers:executing-plans` and `superpowers:test-driven-development`.
+   - For each behavior: write failing test, run RED, implement, run GREEN.
+   - Commit each coherent task separately.
+5. Verify before completion:
+   - Use `superpowers:verification-before-completion`.
+   - Run focused tests for touched modules.
+   - Run `pnpm test` and `pnpm typecheck`.
+6. Close and push:
+   - Add a close marker commit if no implementation commit contains `Closes #N`.
+   - Push to `origin main`.
+   - Confirm `gh issue view N --json number,state,title,closedAt`.
+   - Confirm `git status -sb` is clean and synced.
+7. Continue:
+   - Re-list open issues.
+   - Pick the next highest-priority issue, P1 before P2 before P3, unless dependencies suggest another order.
+
+Recommended V1 order from the current state:
+
+```text
+P1: #6 -> #8
+P2: #12 -> #13 -> #17 -> #9 -> #10 -> #11 -> #14 -> #15 -> #16
+P3/V1.1: #20 -> #19 -> #22 -> #23 -> #24
+```
+
+Backend/shared history work is intentionally post-V1. Do not start it until the local-only V1 issue list is complete and dogfooded.
+
+---
+
 ## Claude Hook Migration Notes For Codex
 
 Claude-specific hooks on this machine enforce workflow boundaries, prompt/read guards, context monitoring, session state, update checks, and commit validation. Codex does not run Claude hooks directly, so agents should emulate the behavior manually:
