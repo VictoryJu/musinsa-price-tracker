@@ -69,6 +69,22 @@ describe('classifyBuyability', () => {
     expect(classifyBuyability(35000, distribution.slice(0, 10), thresholds, 20, now)).toBeNull();
   });
 
+  it('classifies a small absolute drop as great for a low-variance product when it is bottom percentile', () => {
+    const lowVariance = Array.from({ length: 30 }, (_, i) => sample(now - i * day, 39700 + i * 10));
+
+    expect(classifyBuyability(39700, lowVariance, thresholds, 20, now)).toBe('great');
+  });
+
+  it('classifies a large absolute discount by percentile for a high-variance product', () => {
+    const highVariance = Array.from({ length: 30 }, (_, i) => sample(now - i * day, 20000 + i * 2000));
+
+    expect(classifyBuyability(48000, highVariance, thresholds, 20, now)).toBe('fair');
+  });
+
+  it('classifies an all-time-low current price as great', () => {
+    expect(classifyBuyability(34000, distribution, thresholds, 20, now)).toBe('great');
+  });
+
   it('classifies bottom decile as great', () => {
     expect(classifyBuyability(35000, distribution, thresholds, 20, now)).toBe('great');
   });
