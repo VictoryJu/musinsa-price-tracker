@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
 import type { Product } from '../shared/types';
-import { renderPopup } from './index';
+import { exportStorageSnapshot, importStorageSnapshot, renderPopup, resetStorage } from './index';
 
 function productFixture(overrides: Partial<Product> = {}): Product {
   return {
@@ -33,7 +33,8 @@ function productFixture(overrides: Partial<Product> = {}): Product {
 
 describe('renderPopup', () => {
   beforeEach(() => {
-    document.body.innerHTML = '<main><p id="tracked-count"></p><section id="product-list"></section></main>';
+    document.body.innerHTML =
+      '<main><p id="tracked-count"></p><section id="product-list"></section><section id="settings"></section></main>';
   });
 
   it('renders one popup card with a refresh button per tracked product', async () => {
@@ -83,5 +84,39 @@ describe('renderPopup', () => {
     expect(button?.disabled).toBe(false);
     expect(button?.getAttribute('aria-busy')).toBe('false');
     expect(button?.textContent).toBe('지금 체크');
+  });
+
+  it('renders settings actions for export import and reset', async () => {
+    await renderPopup(document);
+
+    expect(document.querySelector('[data-export-data]')?.textContent).toBe('Export JSON');
+    expect(document.querySelector('[data-import-data]')?.textContent).toBe('Import JSON');
+    expect(document.querySelector('[data-reset-data]')?.textContent).toBe('Reset data');
+  });
+
+  it('round-trips export reset import while preserving products and history', async () => {
+    await chrome.storage.local.set({
+      products: { '3674341': productFixture() },
+      '3674341:2026-04': [{ ts: 1, price: 37700, status: 'ok' }],
+    });
+
+    const backup = await exportStorageSnapshot();
+    await resetStorage(() => true);
+    expect(await chrome.storage.local.get(null)).toEqual({});
+
+    await importStorageSnapshot(backup, () => true);
+
+    expect(await chrome.storage.local.get(null)).toEqual({
+      products: { '3674341': productFixture() },
+      '3674341:2026-04': [{ ts: 1, price: 37700, status: 'ok' }],
+    });
+  });
+
+  it('rejects invalid import payloads before replacing storage', async () => {
+    await chrome.storage.local.set({ products: { '3674341': productFixture() } });
+
+    await expect(importStorageSnapshot('{"products":[]}', () => true)).rejects.toThrow('Invalid backup schema');
+
+    expect(await chrome.storage.local.get('products')).toEqual({ products: { '3674341': productFixture() } });
   });
 });
