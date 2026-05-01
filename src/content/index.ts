@@ -23,6 +23,7 @@ export async function bootstrapContentPage(root: Document, pageLocation: Locatio
     productId,
     product,
     historySamples,
+    now: Date.now(),
     onTrackStart: () => {
       void chrome.runtime.sendMessage(createTrackStartMessage(summary));
     },

@@ -8,6 +8,7 @@ export interface RenderProductUiOptions {
   onTrackStart: () => void;
   hoverDelayMs?: number;
   historySamples?: HistorySample[];
+  now?: number;
 }
 
 export interface RenderProductUiResult {
@@ -40,6 +41,11 @@ export function renderProductUi(options: RenderProductUiOptions): RenderProductU
   label.dataset.snapshotLabel = 'true';
   label.textContent = formatSnapshotLabel(options.product.currentSnapshot);
   shadow.append(label);
+  const staleBadge = createStaleBadge(options.product, options.now ?? Date.now());
+  if (staleBadge) {
+    mount.dataset.stale = 'true';
+    shadow.append(staleBadge);
+  }
   mount.setAttribute('data-hover-mounted', 'true');
   attachDelayedTooltip(mount, shadow, options);
 
@@ -69,8 +75,25 @@ function createStatusStyle(): HTMLStyleElement {
       color: #667085;
       font-weight: 600;
     }
+    [data-stale-badge] {
+      color: #92400e;
+      font-size: 11px;
+      font-weight: 600;
+      margin-left: 4px;
+    }
   `;
   return style;
+}
+
+function createStaleBadge(product: Product, now: number): HTMLElement | null {
+  const ageMs = now - product.lastCheckedAt;
+  const staleAfterMs = 24 * 60 * 60 * 1000;
+  if (ageMs <= staleAfterMs) return null;
+
+  const badge = document.createElement('span');
+  badge.dataset.staleBadge = 'true';
+  badge.textContent = `마지막 업데이트: ${Math.floor(ageMs / (60 * 60 * 1000))}시간 전`;
+  return badge;
 }
 
 function removeExistingMount(root: Document): void {

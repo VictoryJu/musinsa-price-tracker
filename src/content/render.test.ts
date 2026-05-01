@@ -117,6 +117,20 @@ describe('renderProductUi', () => {
     expect(mount?.shadowRoot?.querySelector('[data-status-style]')?.textContent).toContain('[data-state="blocked"]');
   });
 
+  it('renders a stale last-updated badge when product data is older than 24 hours', () => {
+    const now = Date.UTC(2026, 4, 1, 12);
+    renderProductUi({
+      root: document,
+      productId: '3674341',
+      product: productFixture({ lastCheckedAt: now - 26 * 60 * 60 * 1000 }),
+      onTrackStart: vi.fn(),
+      now,
+    });
+
+    const mount = document.querySelector('[data-musinsa-price-tracker]');
+    expect(mount?.shadowRoot?.querySelector('[data-stale-badge]')?.textContent).toBe('마지막 업데이트: 26시간 전');
+  });
+
   it('keeps tracked render under the 50ms budget in jsdom', () => {
     const result = renderProductUi({
       root: document,
