@@ -42,18 +42,7 @@ export function renderProductUi(options: RenderProductUiOptions): RenderProductU
   const shadow = mount.attachShadow({ mode: 'open' });
   mount.setAttribute('data-state', getSnapshotState(options.product));
   shadow.append(createStatusStyle());
-
-  const label = options.root.createElement('span');
-  label.dataset.snapshotLabel = 'true';
-  label.textContent = formatTrackingStateLabel(options.product, options);
-  shadow.append(label);
-  const staleBadge = createStaleBadge(options.product, options.now ?? Date.now());
-  if (staleBadge) {
-    mount.dataset.stale = 'true';
-    shadow.append(staleBadge);
-  }
-  mount.setAttribute('data-hover-mounted', 'true');
-  attachDelayedTooltip(mount, shadow, options);
+  shadow.append(createPriceCard(options));
 
   return { mode: 'tracked', durationMs: performance.now() - startedAt };
 }
@@ -64,13 +53,10 @@ function formatTrackingStateLabel(product: Product, options: RenderProductUiOpti
   const trackedDays = getTrackedDays(product.addedAt, options.now ?? Date.now());
   const soakPeriodDays = options.soakPeriodDays ?? 14;
   if (trackedDays <= soakPeriodDays) {
-    return `추적 중 ${trackedDays}일째 / D-${soakPeriodDays - trackedDays}`;
+    return `Tracking day ${trackedDays} / D-${soakPeriodDays - trackedDays}`;
   }
 
-  const pieces = [formatSnapshotLabel(product.currentSnapshot)];
-  if (product.stats.allTimeLow) pieces.push(`최저 ${formatPrice(product.stats.allTimeLow.price)}`);
-  if (product.stats.avg30d !== null) pieces.push(`30일 평균 ${formatPrice(product.stats.avg30d)}`);
-  return pieces.join(' · ');
+  return 'Current price';
 }
 
 function getTrackedDays(addedAt: number, now: number): number {
@@ -83,34 +69,213 @@ function getSnapshotState(product: Product): 'ok' | 'soldOut' | 'failed' | 'bloc
   return product.currentSnapshot.status;
 }
 
+function createPriceCard(options: RenderProductUiOptions): HTMLElement {
+  const product = options.product;
+  if (!product) throw new Error('createPriceCard requires a tracked product');
+
+  const card = document.createElement('section');
+  card.dataset.priceCard = 'true';
+
+  const header = document.createElement('div');
+  header.dataset.cardHeader = 'true';
+
+  const title = document.createElement('span');
+  title.dataset.cardTitle = 'true';
+  title.textContent = 'MUSINSA PRICE';
+  header.append(title);
+
+  const label = document.createElement('span');
+  label.dataset.snapshotLabel = 'true';
+  label.textContent = formatTrackingStateLabel(product, options);
+  header.append(label);
+  card.append(header);
+
+  const current = document.createElement('strong');
+  current.dataset.currentPrice = 'true';
+  current.textContent = product.currentSnapshot.status === 'ok' ? formatPrice(product.currentSnapshot.price) : '-';
+  card.append(current);
+
+  const stats = document.createElement('div');
+  stats.dataset.stats = 'true';
+  stats.append(createStat('low', 'Low', product.stats.allTimeLow ? formatPrice(product.stats.allTimeLow.price) : '-'));
+  stats.append(createStat('avg', '30d avg', product.stats.avg30d !== null ? formatPrice(product.stats.avg30d) : '-'));
+  stats.append(createStat('samples', 'Samples', String(product.stats.samplesIn30d)));
+  card.append(stats);
+
+  const chartWrap = document.createElement('div');
+  chartWrap.dataset.chartWrap = 'true';
+  chartWrap.append(createInlineSparkline(options.historySamples ?? []));
+  card.append(chartWrap);
+
+  const footer = document.createElement('div');
+  footer.dataset.cardFooter = 'true';
+  const staleBadge = createStaleBadge(product, options.now ?? Date.now());
+  if (staleBadge) {
+    footer.append(staleBadge);
+  } else {
+    const fresh = document.createElement('span');
+    fresh.dataset.freshBadge = 'true';
+    fresh.textContent = 'Updated recently';
+    footer.append(fresh);
+  }
+  footer.append(createRefreshButton(options));
+  card.append(footer);
+
+  return card;
+}
+
+function createStat(key: string, label: string, value: string): HTMLElement {
+  const stat = document.createElement('span');
+  stat.dataset.stat = key;
+
+  const caption = document.createElement('span');
+  caption.dataset.statLabel = 'true';
+  caption.textContent = label;
+
+  const number = document.createElement('strong');
+  number.textContent = value;
+
+  stat.append(caption, number);
+  return stat;
+}
+
 function createStatusStyle(): HTMLStyleElement {
   const style = document.createElement('style');
   style.dataset.statusStyle = 'true';
   style.textContent = `
     :host {
       all: initial;
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
+      display: block;
+      width: 292px;
       color: #111827;
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       font-size: 12px;
-      line-height: 1.3;
+      line-height: 1.35;
+      box-sizing: border-box;
+    }
+    *, *::before, *::after {
+      box-sizing: border-box;
+    }
+    [data-price-card] {
+      width: 100%;
+      border: 1px solid rgba(17, 24, 39, 0.12);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.97);
+      box-shadow: 0 18px 44px rgba(17, 24, 39, 0.18);
+      color: #111827;
+      padding: 12px;
+      backdrop-filter: blur(10px);
+    }
+    [data-card-header],
+    [data-card-footer] {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    [data-card-title] {
+      color: #6b7280;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0;
+      white-space: nowrap;
+    }
+    [data-snapshot-label] {
+      min-width: 0;
+      color: #374151;
+      font-size: 11px;
+      font-weight: 600;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    [data-current-price] {
+      display: block;
+      margin-top: 8px;
+      color: #111827;
+      font-size: 24px;
+      font-weight: 800;
+      letter-spacing: 0;
+      line-height: 1.1;
+    }
+    [data-stats] {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 6px;
+      margin-top: 10px;
+    }
+    [data-stat] {
+      min-width: 0;
+      border: 1px solid rgba(17, 24, 39, 0.08);
+      border-radius: 7px;
+      background: #f9fafb;
+      padding: 7px 8px;
+    }
+    [data-stat-label] {
+      display: block;
+      color: #6b7280;
+      font-size: 10px;
+      font-weight: 600;
+      line-height: 1.2;
+    }
+    [data-stat] strong {
+      display: block;
+      margin-top: 3px;
+      color: #111827;
+      font-size: 11px;
+      font-weight: 750;
+      overflow-wrap: anywhere;
+    }
+    [data-chart-wrap] {
+      height: 42px;
+      margin-top: 10px;
+      color: #0f766e;
+    }
+    [data-sparkline] {
+      display: block;
+      width: 100%;
+      height: 42px;
+      overflow: visible;
+    }
+    [data-sparkline][data-empty="true"] {
+      color: #d1d5db;
+    }
+    [data-card-footer] {
+      margin-top: 10px;
     }
     :host([data-state="failed"]) [data-snapshot-label],
     :host([data-state="blocked"]) [data-snapshot-label] {
       color: #b42318;
-      font-weight: 600;
+      font-weight: 700;
     }
     :host([data-state="soldOut"]) [data-snapshot-label] {
       color: #667085;
-      font-weight: 600;
+      font-weight: 700;
     }
     [data-stale-badge] {
       color: #92400e;
       font-size: 11px;
       font-weight: 600;
-      margin-left: 4px;
+    }
+    [data-fresh-badge] {
+      color: #6b7280;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    [data-refresh-now] {
+      border: 1px solid rgba(17, 24, 39, 0.12);
+      border-radius: 7px;
+      background: #111827;
+      color: #ffffff;
+      cursor: pointer;
+      font: 700 11px/1 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      min-height: 28px;
+      padding: 0 10px;
+      white-space: nowrap;
+    }
+    [data-refresh-now]:disabled {
+      cursor: wait;
+      opacity: 0.72;
     }
   `;
   return style;
@@ -123,7 +288,7 @@ function createStaleBadge(product: Product, now: number): HTMLElement | null {
 
   const badge = document.createElement('span');
   badge.dataset.staleBadge = 'true';
-  badge.textContent = `마지막 업데이트: ${Math.floor(ageMs / (60 * 60 * 1000))}시간 전`;
+  badge.textContent = `Last update: ${Math.floor(ageMs / (60 * 60 * 1000))}h ago`;
   return badge;
 }
 
@@ -134,8 +299,8 @@ function removeExistingMount(root: Document): void {
 function pinMountToViewport(mount: HTMLElement): void {
   Object.assign(mount.style, {
     position: 'fixed',
-    top: '88px',
-    right: '16px',
+    right: '24px',
+    bottom: '24px',
     zIndex: '2147483647',
     display: 'inline-flex',
     alignItems: 'center',
@@ -157,35 +322,11 @@ function styleTrackButton(button: HTMLButtonElement): void {
   });
 }
 
-function attachDelayedTooltip(mount: HTMLElement, shadow: ShadowRoot, options: RenderProductUiOptions): void {
-  let timer: ReturnType<typeof setTimeout> | null = null;
-  const delay = options.hoverDelayMs ?? 300;
-  const historySamples = options.historySamples ?? [];
-
-  mount.addEventListener('mouseenter', () => {
-    timer = setTimeout(() => {
-      if (shadow.querySelector('[data-tooltip]')) return;
-
-      const tooltip = document.createElement('aside');
-      tooltip.dataset.tooltip = 'true';
-      tooltip.textContent = `${historySamples.length} samples`;
-      tooltip.append(createInlineSparkline(historySamples));
-      tooltip.append(createRefreshButton(options));
-      shadow.append(tooltip);
-    }, delay);
-  });
-
-  mount.addEventListener('mouseleave', () => {
-    if (timer) clearTimeout(timer);
-    timer = null;
-  });
-}
-
 function createRefreshButton(options: RenderProductUiOptions): HTMLButtonElement {
   const button = document.createElement('button');
   button.type = 'button';
   button.dataset.refreshNow = options.productId;
-  button.textContent = '지금 체크';
+  button.textContent = 'Check now';
   button.setAttribute('aria-busy', 'false');
   button.addEventListener('click', () => {
     void refreshNow(options, button);
@@ -198,14 +339,14 @@ async function refreshNow(options: RenderProductUiOptions, button: HTMLButtonEle
 
   button.disabled = true;
   button.setAttribute('aria-busy', 'true');
-  button.textContent = '체크 중...';
+  button.textContent = 'Checking...';
 
   try {
     await options.onRefreshNow(options.productId);
   } finally {
     button.disabled = false;
     button.setAttribute('aria-busy', 'false');
-    button.textContent = '지금 체크';
+    button.textContent = 'Check now';
   }
 }
 
@@ -224,6 +365,16 @@ function createInlineSparkline(samples: HistorySample[]): SVGSVGElement {
 
   if (points.length < 2) {
     svg.setAttribute('data-empty', 'true');
+    const baseline = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    baseline.setAttribute('x1', '0');
+    baseline.setAttribute('x2', '100');
+    baseline.setAttribute('y1', '9');
+    baseline.setAttribute('y2', '9');
+    baseline.setAttribute('stroke', 'currentColor');
+    baseline.setAttribute('stroke-width', '2');
+    baseline.setAttribute('stroke-dasharray', '4 4');
+    baseline.setAttribute('vector-effect', 'non-scaling-stroke');
+    svg.append(baseline);
     return svg;
   }
 

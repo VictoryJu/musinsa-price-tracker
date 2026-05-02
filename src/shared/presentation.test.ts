@@ -12,7 +12,7 @@ describe('presentation helpers', () => {
       errorMessage: 'Product is sold out',
     };
 
-    expect(formatSnapshotLabel(snapshot)).toBe('품절');
+    expect(formatSnapshotLabel(snapshot)).toBe('Sold out');
   });
 
   it('formats ok snapshots as KRW price labels', () => {
@@ -36,7 +36,7 @@ describe('presentation helpers', () => {
       errorMessage: 'fetch blocked',
     };
 
-    expect(formatSnapshotLabel(snapshot)).toBe('fetch 차단됨');
+    expect(formatSnapshotLabel(snapshot)).toBe('Fetch blocked');
   });
 
   it('formats generic failed snapshots as explicit extraction failure', () => {
@@ -49,7 +49,7 @@ describe('presentation helpers', () => {
       errorMessage: 'Unable to extract price',
     };
 
-    expect(formatSnapshotLabel(snapshot)).toBe('가격 추출 실패 ⚠️');
+    expect(formatSnapshotLabel(snapshot)).toBe('Price extraction failed');
   });
 
   it('converts unavailable samples to null chart points so lines break', () => {

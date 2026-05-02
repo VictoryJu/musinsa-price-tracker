@@ -124,11 +124,10 @@ describe('bootstrapContentPage', () => {
     expect(
       document.querySelector('[data-musinsa-price-tracker]')?.shadowRoot?.querySelector('[data-snapshot-label]')
         ?.textContent
-    ).toBe('추적 중 5일째 / D-2');
+    ).toBe('Tracking day 5 / D-2');
   });
 
-  it('preloads product history once and renders hover tooltip from cache', async () => {
-    vi.useFakeTimers();
+  it('preloads product history once and renders the visible chart from cache', async () => {
     (chrome.storage.local.get as unknown as Mock).mockResolvedValueOnce({
       products: { '3674341': productFixture() },
       '3674341:2026-04': [
@@ -141,15 +140,12 @@ describe('bootstrapContentPage', () => {
     await bootstrapContentPage(document, setLocation('/products/3674341'));
 
     const mount = document.querySelector('[data-musinsa-price-tracker]');
-    mount?.dispatchEvent(new MouseEvent('mouseenter'));
-    vi.advanceTimersByTime(300);
-
     expect(chrome.storage.local.get).toHaveBeenCalledTimes(1);
-    expect(mount?.shadowRoot?.querySelector('[data-tooltip]')?.textContent).toContain('2 samples');
+    expect(mount?.shadowRoot?.querySelector('[data-sparkline] polyline')?.getAttribute('points')).toBe('0,18 100,0');
+    expect(mount?.shadowRoot?.querySelector('[data-stat="samples"]')?.textContent).toContain('20');
   });
 
-  it('sends REFRESH_NOW from the inline hover tooltip', async () => {
-    vi.useFakeTimers();
+  it('sends REFRESH_NOW from the visible price card', async () => {
     (chrome.storage.local.get as unknown as Mock).mockResolvedValueOnce({
       products: { '3674341': productFixture() },
       '3674341:2026-04': [
@@ -161,8 +157,6 @@ describe('bootstrapContentPage', () => {
     await bootstrapContentPage(document, setLocation('/products/3674341'));
 
     const mount = document.querySelector('[data-musinsa-price-tracker]');
-    mount?.dispatchEvent(new MouseEvent('mouseenter'));
-    vi.advanceTimersByTime(300);
     mount?.shadowRoot?.querySelector<HTMLButtonElement>('[data-refresh-now]')?.click();
     await Promise.resolve();
 

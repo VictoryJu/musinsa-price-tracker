@@ -8,10 +8,10 @@ export interface ChartPoint {
 }
 
 export function formatSnapshotLabel(snapshot: CurrentSnapshot): string {
-  if (snapshot.status === 'soldOut') return '품절';
+  if (snapshot.status === 'soldOut') return 'Sold out';
   if (snapshot.status === 'failed') {
-    if (snapshot.errorClass === 'blocked') return 'fetch 차단됨';
-    return '가격 추출 실패 ⚠️';
+    if (snapshot.errorClass === 'blocked') return 'Fetch blocked';
+    return 'Price extraction failed';
   }
   return formatPrice(snapshot.price);
 }

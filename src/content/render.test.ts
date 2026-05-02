@@ -40,7 +40,7 @@ describe('renderProductUi', () => {
     vi.useRealTimers();
   });
 
-  it('renders only a minimal tracking CTA for untracked products', () => {
+  it('renders a compact tracking CTA for untracked products', () => {
     const onTrackStart = vi.fn();
     const result = renderProductUi({
       root: document,
@@ -50,11 +50,11 @@ describe('renderProductUi', () => {
     });
 
     const mount = document.querySelector('[data-musinsa-price-tracker]');
+    const button = document.querySelector('button');
     expect(result.mode).toBe('cta');
     expect(mount?.shadowRoot).toBeNull();
-    expect(document.querySelectorAll('button')).toHaveLength(1);
-    expect(document.querySelector('button')?.textContent).toBe('+');
-    expect(document.querySelector('button')?.getAttribute('aria-label')).toBe('Track this product');
+    expect(button?.textContent).toBe('+');
+    expect(button?.getAttribute('aria-label')).toBe('Track this product');
     expect(mount?.getAttribute('data-hover-mounted')).toBeNull();
   });
 
@@ -68,12 +68,12 @@ describe('renderProductUi', () => {
 
     const mount = document.querySelector<HTMLElement>('[data-musinsa-price-tracker]');
     expect(mount?.style.position).toBe('fixed');
-    expect(mount?.style.top).toBe('88px');
-    expect(mount?.style.right).toBe('16px');
+    expect(mount?.style.right).toBe('24px');
+    expect(mount?.style.bottom).toBe('24px');
     expect(mount?.style.zIndex).toBe('2147483647');
   });
 
-  it('renders tracked products with a shadow label and hover marker', () => {
+  it('shows the core price dashboard and chart without hover', () => {
     const now = Date.UTC(2026, 4, 1);
     const result = renderProductUi({
       root: document,
@@ -81,12 +81,33 @@ describe('renderProductUi', () => {
       product: productFixture({ addedAt: now - 20 * 24 * 60 * 60 * 1000, lastCheckedAt: now }),
       onTrackStart: vi.fn(),
       now,
+      historySamples: [sample(1, 37700), sample(2, 39000), sample(3, 38350)],
     });
 
     const mount = document.querySelector('[data-musinsa-price-tracker]');
+    const shadow = mount?.shadowRoot;
     expect(result.mode).toBe('tracked');
-    expect(mount?.shadowRoot?.textContent).toContain('37,700원 · 최저 37,700원 · 30일 평균 39,000원');
-    expect(mount?.getAttribute('data-hover-mounted')).toBe('true');
+    expect(mount?.getAttribute('data-hover-mounted')).toBeNull();
+    expect(shadow?.querySelector('[data-price-card]')).not.toBeNull();
+    expect(shadow?.querySelector('[data-current-price]')?.textContent).toBe('37,700원');
+    expect(shadow?.querySelector('[data-snapshot-label]')?.textContent).toBe('Current price');
+    expect(shadow?.querySelector('[data-stat="low"]')?.textContent).toContain('37,700원');
+    expect(shadow?.querySelector('[data-stat="avg"]')?.textContent).toContain('39,000원');
+    expect(shadow?.querySelector('[data-sparkline] polyline')?.getAttribute('points')).toBe('0,18 50,0 100,9');
+  });
+
+  it('keeps a one-sample chart visible with an empty state instead of hiding it', () => {
+    renderProductUi({
+      root: document,
+      productId: '3674341',
+      product: productFixture(),
+      onTrackStart: vi.fn(),
+      historySamples: [sample(1, 37700)],
+    });
+
+    const sparkline = document.querySelector('[data-musinsa-price-tracker]')?.shadowRoot?.querySelector('[data-sparkline]');
+    expect(sparkline).not.toBeNull();
+    expect(sparkline?.getAttribute('data-empty')).toBe('true');
   });
 
   it('resets inherited page styles at the shadow host boundary', () => {
@@ -107,7 +128,7 @@ describe('renderProductUi', () => {
     expect(style).toContain('font-size:');
   });
 
-  it('renders soak-period tracking progress before active analysis', () => {
+  it('renders soak-period tracking progress while still showing price', () => {
     const now = Date.UTC(2026, 4, 10);
     renderProductUi({
       root: document,
@@ -118,8 +139,9 @@ describe('renderProductUi', () => {
       soakPeriodDays: 14,
     });
 
-    const mount = document.querySelector('[data-musinsa-price-tracker]');
-    expect(mount?.shadowRoot?.querySelector('[data-snapshot-label]')?.textContent).toBe('추적 중 3일째 / D-11');
+    const shadow = document.querySelector('[data-musinsa-price-tracker]')?.shadowRoot;
+    expect(shadow?.querySelector('[data-snapshot-label]')?.textContent).toBe('Tracking day 3 / D-11');
+    expect(shadow?.querySelector('[data-current-price]')?.textContent).toBe('37,700원');
   });
 
   it('renders failed extraction with a distinct error state', () => {
@@ -141,8 +163,7 @@ describe('renderProductUi', () => {
 
     const mount = document.querySelector('[data-musinsa-price-tracker]');
     expect(mount?.getAttribute('data-state')).toBe('failed');
-    expect(mount?.shadowRoot?.textContent).toContain('가격 추출 실패 ⚠️');
-    expect(mount?.shadowRoot?.querySelector('[data-status-style]')?.textContent).toContain('[data-state="failed"]');
+    expect(mount?.shadowRoot?.textContent).toContain('Price extraction failed');
   });
 
   it('renders bot-blocked fetch with a distinct blocked state', () => {
@@ -164,8 +185,7 @@ describe('renderProductUi', () => {
 
     const mount = document.querySelector('[data-musinsa-price-tracker]');
     expect(mount?.getAttribute('data-state')).toBe('blocked');
-    expect(mount?.shadowRoot?.textContent).toContain('fetch 차단됨');
-    expect(mount?.shadowRoot?.querySelector('[data-status-style]')?.textContent).toContain('[data-state="blocked"]');
+    expect(mount?.shadowRoot?.textContent).toContain('Fetch blocked');
   });
 
   it('renders a stale last-updated badge when product data is older than 24 hours', () => {
@@ -178,8 +198,8 @@ describe('renderProductUi', () => {
       now,
     });
 
-    const mount = document.querySelector('[data-musinsa-price-tracker]');
-    expect(mount?.shadowRoot?.querySelector('[data-stale-badge]')?.textContent).toBe('마지막 업데이트: 26시간 전');
+    const staleBadge = document.querySelector('[data-musinsa-price-tracker]')?.shadowRoot?.querySelector('[data-stale-badge]');
+    expect(staleBadge?.textContent).toBe('Last update: 26h ago');
   });
 
   it('keeps tracked render under the 50ms budget in jsdom', () => {
@@ -193,93 +213,7 @@ describe('renderProductUi', () => {
     expect(result.durationMs).toBeLessThan(50);
   });
 
-  it('mounts tooltip only after the configured hover delay using cached history', () => {
-    vi.useFakeTimers();
-    renderProductUi({
-      root: document,
-      productId: '3674341',
-      product: productFixture(),
-      onTrackStart: vi.fn(),
-      hoverDelayMs: 300,
-      historySamples: [sample(1, 37700)],
-    });
-
-    const mount = document.querySelector('[data-musinsa-price-tracker]');
-    mount?.dispatchEvent(new MouseEvent('mouseenter'));
-    vi.advanceTimersByTime(299);
-    expect(mount?.shadowRoot?.querySelector('[data-tooltip]')).toBeNull();
-
-    vi.advanceTimersByTime(1);
-    expect(mount?.shadowRoot?.querySelector('[data-tooltip]')?.textContent).toContain('1 samples');
-  });
-
-  it('does not mount tooltip when mouse leaves before the hover delay', () => {
-    vi.useFakeTimers();
-    renderProductUi({
-      root: document,
-      productId: '3674341',
-      product: productFixture(),
-      onTrackStart: vi.fn(),
-      hoverDelayMs: 300,
-      historySamples: [sample(1, 37700)],
-    });
-
-    const mount = document.querySelector('[data-musinsa-price-tracker]');
-    mount?.dispatchEvent(new MouseEvent('mouseenter'));
-    mount?.dispatchEvent(new MouseEvent('mouseleave'));
-    vi.advanceTimersByTime(300);
-
-    expect(mount?.shadowRoot?.querySelector('[data-tooltip]')).toBeNull();
-  });
-
-  it('does not mount sparkline after quick hover passes', () => {
-    vi.useFakeTimers();
-    renderProductUi({
-      root: document,
-      productId: '3674341',
-      product: productFixture(),
-      onTrackStart: vi.fn(),
-      hoverDelayMs: 300,
-      historySamples: [sample(1, 37700)],
-    });
-
-    const mount = document.querySelector('[data-musinsa-price-tracker]');
-    for (let i = 0; i < 10; i += 1) {
-      mount?.dispatchEvent(new MouseEvent('mouseenter'));
-      vi.advanceTimersByTime(50);
-      mount?.dispatchEvent(new MouseEvent('mouseleave'));
-    }
-    vi.advanceTimersByTime(300);
-
-    expect(mount?.shadowRoot?.querySelector('[data-sparkline]')).toBeNull();
-  });
-
-  it('renders cached history as an inline SVG sparkline after hover delay', () => {
-    vi.useFakeTimers();
-    renderProductUi({
-      root: document,
-      productId: '3674341',
-      product: productFixture(),
-      onTrackStart: vi.fn(),
-      hoverDelayMs: 300,
-      historySamples: [
-        sample(3, 39000),
-        sample(1, 37000),
-        sample(2, 38000),
-      ],
-    });
-
-    const mount = document.querySelector('[data-musinsa-price-tracker]');
-    mount?.dispatchEvent(new MouseEvent('mouseenter'));
-    vi.advanceTimersByTime(300);
-
-    const sparkline = mount?.shadowRoot?.querySelector('[data-sparkline]');
-    expect(sparkline?.tagName.toLowerCase()).toBe('svg');
-    expect(sparkline?.querySelector('polyline')?.getAttribute('points')).toBe('0,18 50,9 100,0');
-  });
-
-  it('refreshes the tracked product from the hover tooltip and shows a spinner while pending', async () => {
-    vi.useFakeTimers();
+  it('refreshes the tracked product from the always-visible card and shows a pending state', async () => {
     let resolveRefresh!: () => void;
     const onRefreshNow = vi.fn(
       () =>
@@ -293,22 +227,19 @@ describe('renderProductUi', () => {
       product: productFixture(),
       onTrackStart: vi.fn(),
       onRefreshNow,
-      hoverDelayMs: 300,
       historySamples: [sample(1, 37700), sample(2, 38000)],
     });
 
-    const mount = document.querySelector('[data-musinsa-price-tracker]');
-    mount?.dispatchEvent(new MouseEvent('mouseenter'));
-    vi.advanceTimersByTime(300);
-
-    const button = mount?.shadowRoot?.querySelector<HTMLButtonElement>('[data-refresh-now]');
+    const button = document
+      .querySelector('[data-musinsa-price-tracker]')
+      ?.shadowRoot?.querySelector<HTMLButtonElement>('[data-refresh-now]');
     button?.click();
     await Promise.resolve();
 
     expect(onRefreshNow).toHaveBeenCalledWith('3674341');
     expect(button?.disabled).toBe(true);
     expect(button?.getAttribute('aria-busy')).toBe('true');
-    expect(button?.textContent).toBe('체크 중...');
+    expect(button?.textContent).toBe('Checking...');
 
     resolveRefresh();
     await Promise.resolve();
@@ -316,29 +247,23 @@ describe('renderProductUi', () => {
 
     expect(button?.disabled).toBe(false);
     expect(button?.getAttribute('aria-busy')).toBe('false');
-    expect(button?.textContent).toBe('지금 체크');
+    expect(button?.textContent).toBe('Check now');
   });
 
-  it('ignores unavailable samples in the hover sparkline path', () => {
-    vi.useFakeTimers();
+  it('ignores unavailable samples in the visible sparkline path', () => {
     renderProductUi({
       root: document,
       productId: '3674341',
       product: productFixture(),
       onTrackStart: vi.fn(),
-      hoverDelayMs: 300,
-      historySamples: [
-        sample(1, 37000),
-        sample(2, null, 'soldOut'),
-        sample(3, null, 'failed'),
-        sample(4, 39000),
-      ],
+      historySamples: [sample(1, 37000), sample(2, null, 'soldOut'), sample(3, null, 'failed'), sample(4, 39000)],
     });
 
-    const mount = document.querySelector('[data-musinsa-price-tracker]');
-    mount?.dispatchEvent(new MouseEvent('mouseenter'));
-    vi.advanceTimersByTime(300);
-
-    expect(mount?.shadowRoot?.querySelector('[data-sparkline] polyline')?.getAttribute('points')).toBe('0,18 100,0');
+    expect(
+      document
+        .querySelector('[data-musinsa-price-tracker]')
+        ?.shadowRoot?.querySelector('[data-sparkline] polyline')
+        ?.getAttribute('points')
+    ).toBe('0,18 100,0');
   });
 });
