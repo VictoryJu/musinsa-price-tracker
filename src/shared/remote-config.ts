@@ -21,7 +21,13 @@ export async function loadRemoteConfig(options: LoadRemoteConfigOptions): Promis
     return current.remoteConfig;
   }
 
-  const remoteConfig = normalizeRemoteConfig(await options.fetchJson(options.url ?? DEFAULT_REMOTE_CONFIG_URL));
+  let remoteConfig: RemoteExtractionConfig;
+  try {
+    remoteConfig = normalizeRemoteConfig(await options.fetchJson(options.url ?? DEFAULT_REMOTE_CONFIG_URL));
+  } catch {
+    return isRemoteExtractionConfig(current.remoteConfig) ? current.remoteConfig : {};
+  }
+
   await chrome.storage.local.set({
     remoteConfig,
     remoteConfigFetchedAt: options.now,

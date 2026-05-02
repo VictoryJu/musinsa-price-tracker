@@ -131,6 +131,30 @@ describe('processProductCheck', () => {
     });
   });
 
+  it('continues extracting prices when remote config fetch fails', async () => {
+    await initializeStorage();
+    const product = productFixture();
+    await setProduct(product);
+    const now = Date.UTC(2026, 3, 15);
+    const fetchJson = vi.fn(async () => {
+      throw new TypeError('Failed to fetch');
+    });
+
+    await processProductCheck(product.id, {
+      now,
+      fetchHtml: async () => productHtml(37700),
+      fetchJson,
+    });
+
+    expect(fetchJson).toHaveBeenCalledOnce();
+    expect((await getProduct(product.id))?.currentSnapshot).toEqual({
+      price: 37700,
+      ts: now,
+      extractorPath: 'json-ld',
+      status: 'ok',
+    });
+  });
+
   it('does not recompute stats during a failed fetch', async () => {
     await initializeStorage();
     const existingStats = {

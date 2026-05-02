@@ -6,10 +6,11 @@ const productPageMatches = [
   '*://*.musinsa.com/app/goods/*',
   '*://*.musinsa.com/goods/*',
 ];
+const hostPermissions = [...productPageMatches, 'https://raw.githubusercontent.com/*'];
 
 describe('manifest permissions', () => {
-  it('limits host permissions to Musinsa product pages', () => {
-    expect(manifest.host_permissions).toEqual(productPageMatches);
+  it('limits host permissions to Musinsa product pages and remote config', () => {
+    expect(manifest.host_permissions).toEqual(hostPermissions);
   });
 
   it('runs content scripts only on Musinsa product pages', () => {
