@@ -52,7 +52,7 @@ describe('renderPopup', () => {
 
     expect(document.querySelector('#tracked-count')?.textContent).toBe('1 tracked product');
     expect(document.querySelector('[data-product-card="3674341"]')?.textContent).toContain('Test Hoodie');
-    expect(document.querySelector<HTMLButtonElement>('[data-refresh-now="3674341"]')?.textContent).toBe('Check now');
+    expect(document.querySelector<HTMLButtonElement>('[data-refresh-now="3674341"]')?.textContent).toBe('Update');
   });
 
   it('sends REFRESH_NOW and shows a spinner while refresh is pending', async () => {
@@ -79,7 +79,7 @@ describe('renderPopup', () => {
     });
     expect(button?.disabled).toBe(true);
     expect(button?.getAttribute('aria-busy')).toBe('true');
-    expect(button?.textContent).toBe('Checking...');
+    expect(button?.textContent).toBe('Updating...');
 
     resolveRefresh({ ok: true });
     await Promise.resolve();
@@ -87,7 +87,7 @@ describe('renderPopup', () => {
 
     expect(button?.disabled).toBe(false);
     expect(button?.getAttribute('aria-busy')).toBe('false');
-    expect(button?.textContent).toBe('Check now');
+    expect(button?.textContent).toBe('Update');
   });
 
   it('renders settings actions for export import and reset', async () => {

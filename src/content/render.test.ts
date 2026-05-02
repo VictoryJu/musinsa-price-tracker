@@ -306,7 +306,7 @@ describe('renderProductUi', () => {
     expect(onRefreshNow).toHaveBeenCalledWith('3674341');
     expect(button?.disabled).toBe(true);
     expect(button?.getAttribute('aria-busy')).toBe('true');
-    expect(button?.textContent).toBe('Checking...');
+    expect(button?.textContent).toBe('Updating...');
 
     resolveRefresh();
     await Promise.resolve();
@@ -314,7 +314,37 @@ describe('renderProductUi', () => {
 
     expect(button?.disabled).toBe(false);
     expect(button?.getAttribute('aria-busy')).toBe('false');
-    expect(button?.textContent).toBe('Check now');
+    expect(button?.textContent).toBe('Update');
+  });
+
+  it('keeps the popover open long enough to move from the badge to the update button', () => {
+    vi.useFakeTimers();
+    document.body.innerHTML = '<div><span>60%</span> <strong id="musinsa-price">37,700\uC6D0</strong></div>';
+    renderProductUi({
+      root: document,
+      productId: '3674341',
+      product: productFixture(),
+      onTrackStart: vi.fn(),
+    });
+
+    const mount = document.querySelector<HTMLElement>('[data-musinsa-price-tracker]');
+    const shadow = mount?.shadowRoot;
+    const badge = shadow?.querySelector('[data-price-badge]');
+    const popover = shadow?.querySelector('[data-price-popover]');
+    const button = shadow?.querySelector('[data-refresh-now]');
+
+    badge?.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+    expect(mount?.dataset.popoverOpen).toBe('true');
+    expect((popover as HTMLElement | null)?.dataset.open).toBe('true');
+
+    badge?.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true }));
+    vi.advanceTimersByTime(100);
+    popover?.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+    vi.advanceTimersByTime(300);
+
+    expect(mount?.dataset.popoverOpen).toBe('true');
+    expect((popover as HTMLElement | null)?.dataset.open).toBe('true');
+    expect(button?.textContent).toBe('Update');
   });
 
   it('ignores unavailable samples in the visible sparkline path', () => {

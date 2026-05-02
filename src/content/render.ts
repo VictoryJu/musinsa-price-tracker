@@ -45,8 +45,11 @@ export function renderProductUi(options: RenderProductUiOptions): RenderProductU
   const shadow = mount.attachShadow({ mode: 'open' });
   mount.setAttribute('data-state', getSnapshotState(options.product));
   shadow.append(createStatusStyle());
-  shadow.append(createInlinePriceBadge(options));
-  shadow.append(createPricePopover(options));
+  const badge = createInlinePriceBadge(options);
+  const popover = createPricePopover(options);
+  wirePopoverHoverState(mount, badge, popover);
+  shadow.append(badge);
+  shadow.append(popover);
 
   return { mode: 'tracked', durationMs: performance.now() - startedAt };
 }
@@ -171,6 +174,47 @@ function createPricePopover(options: RenderProductUiOptions): HTMLElement {
   return popover;
 }
 
+function wirePopoverHoverState(mount: HTMLElement, badge: HTMLElement, popover: HTMLElement): void {
+  let closeTimer: number | null = null;
+
+  const open = () => {
+    if (closeTimer) window.clearTimeout(closeTimer);
+    closeTimer = null;
+    mount.dataset.popoverOpen = 'true';
+    popover.dataset.open = 'true';
+    Object.assign(popover.style, {
+      opacity: '1',
+      pointerEvents: 'auto',
+      transform: 'translateY(0)',
+      visibility: 'visible',
+    });
+  };
+
+  const scheduleClose = () => {
+    if (closeTimer) window.clearTimeout(closeTimer);
+    closeTimer = window.setTimeout(() => {
+      delete mount.dataset.popoverOpen;
+      delete popover.dataset.open;
+      Object.assign(popover.style, {
+        opacity: '',
+        pointerEvents: '',
+        transform: '',
+        visibility: '',
+      });
+      closeTimer = null;
+    }, 250);
+  };
+
+  badge.addEventListener('mouseenter', open);
+  badge.addEventListener('focus', open);
+  badge.addEventListener('mouseleave', scheduleClose);
+  badge.addEventListener('blur', scheduleClose);
+  popover.addEventListener('mouseenter', open);
+  popover.addEventListener('mouseleave', scheduleClose);
+  popover.addEventListener('focusin', open);
+  popover.addEventListener('focusout', scheduleClose);
+}
+
 function getCurrentPriceLabel(product: Product | null): string {
   if (!product) return '-';
   return product.currentSnapshot.status === 'ok' ? formatPrice(product.currentSnapshot.price) : formatSnapshotLabel(product.currentSnapshot);
@@ -287,12 +331,18 @@ function createStatusStyle(): HTMLStyleElement {
       opacity: 0;
       pointer-events: none;
       transform: translateY(-4px);
-      transition: opacity 120ms ease, transform 120ms ease, visibility 120ms ease;
+      transition: none;
       visibility: hidden;
       z-index: 2147483647;
     }
     :host(:hover) [data-price-popover],
     :host(:focus-within) [data-price-popover] {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translateY(0);
+      visibility: visible;
+    }
+    [data-price-popover][data-open="true"] {
       opacity: 1;
       pointer-events: auto;
       transform: translateY(0);
@@ -501,7 +551,7 @@ function createRefreshButton(options: RenderProductUiOptions): HTMLButtonElement
   const button = document.createElement('button');
   button.type = 'button';
   button.dataset.refreshNow = options.productId;
-  button.textContent = 'Check now';
+  button.textContent = 'Update';
   button.setAttribute('aria-busy', 'false');
   button.addEventListener('click', () => {
     void refreshNow(options, button);
@@ -514,14 +564,14 @@ async function refreshNow(options: RenderProductUiOptions, button: HTMLButtonEle
 
   button.disabled = true;
   button.setAttribute('aria-busy', 'true');
-  button.textContent = 'Checking...';
+  button.textContent = 'Updating...';
 
   try {
     await options.onRefreshNow(options.productId);
   } finally {
     button.disabled = false;
     button.setAttribute('aria-busy', 'false');
-    button.textContent = 'Check now';
+    button.textContent = 'Update';
   }
 }
 

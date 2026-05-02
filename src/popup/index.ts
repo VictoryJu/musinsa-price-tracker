@@ -36,7 +36,7 @@ export async function renderPopup(root: Document): Promise<void> {
     const refreshButton = root.createElement('button');
     refreshButton.type = 'button';
     refreshButton.dataset.refreshNow = product.id;
-    refreshButton.textContent = 'Check now';
+    refreshButton.textContent = 'Update';
     refreshButton.setAttribute('aria-busy', 'false');
     refreshButton.addEventListener('click', () => {
       void refreshProduct(product.id, refreshButton);
@@ -205,14 +205,14 @@ function buildDebugReport(products: Product[], now: number) {
 async function refreshProduct(productId: string, button: HTMLButtonElement): Promise<void> {
   button.disabled = true;
   button.setAttribute('aria-busy', 'true');
-  button.textContent = 'Checking...';
+  button.textContent = 'Updating...';
 
   try {
     await chrome.runtime.sendMessage(createRefreshNowMessage(productId));
   } finally {
     button.disabled = false;
     button.setAttribute('aria-busy', 'false');
-    button.textContent = 'Check now';
+    button.textContent = 'Update';
   }
 }
 
