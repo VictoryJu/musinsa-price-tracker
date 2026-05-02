@@ -155,6 +155,75 @@ describe('processProductCheck', () => {
     });
   });
 
+  it('extracts prices in Chrome service workers where DOMParser is unavailable', async () => {
+    await initializeStorage();
+    const product = productFixture();
+    await setProduct(product);
+    const now = Date.UTC(2026, 3, 15);
+    const originalDomParser = globalThis.DOMParser;
+
+    try {
+      Reflect.deleteProperty(globalThis, 'DOMParser');
+
+      await processProductCheck(product.id, {
+        now,
+        fetchHtml: async () => productHtml(37700),
+      });
+    } finally {
+      Object.defineProperty(globalThis, 'DOMParser', {
+        configurable: true,
+        writable: true,
+        value: originalDomParser,
+      });
+    }
+
+    expect((await getProduct(product.id))?.currentSnapshot).toEqual({
+      price: 37700,
+      ts: now,
+      extractorPath: 'json-ld',
+      status: 'ok',
+    });
+  });
+
+  it('extracts service worker prices from Musinsa product meta tags', async () => {
+    await initializeStorage();
+    const product = productFixture();
+    await setProduct(product);
+    const now = Date.UTC(2026, 3, 15);
+    const originalDomParser = globalThis.DOMParser;
+
+    try {
+      Reflect.deleteProperty(globalThis, 'DOMParser');
+
+      await processProductCheck(product.id, {
+        now,
+        fetchHtml: async () => `
+          <html>
+            <head>
+              <meta property="product:price:amount" content="37700" />
+            </head>
+            <body>
+              <script>window.__MSS__ = {"goodsPrice":{"salePrice":37700,"normalPrice":94000}}</script>
+            </body>
+          </html>
+        `,
+      });
+    } finally {
+      Object.defineProperty(globalThis, 'DOMParser', {
+        configurable: true,
+        writable: true,
+        value: originalDomParser,
+      });
+    }
+
+    expect((await getProduct(product.id))?.currentSnapshot).toEqual({
+      price: 37700,
+      ts: now,
+      extractorPath: 'css-selector',
+      status: 'ok',
+    });
+  });
+
   it('does not recompute stats during a failed fetch', async () => {
     await initializeStorage();
     const existingStats = {

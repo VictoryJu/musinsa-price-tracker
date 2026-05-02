@@ -204,6 +204,7 @@ Use this exact loop for every GitHub issue unless the user explicitly overrides 
    - Use `superpowers:verification-before-completion`.
    - Run focused tests for touched modules.
    - Run `pnpm test` and `pnpm typecheck`.
+   - For extension behavior, price extraction, manifest, popup, background, or content-script changes, also run `pnpm build`, reload/enable the unpacked `dist` extension in Chrome, open a real Musinsa product page, and verify the UI plus price-tracking result in the browser before claiming the work is done.
 6. Close and push:
    - Add a close marker commit if no implementation commit contains `Closes #N`.
    - Push to `origin main`.
