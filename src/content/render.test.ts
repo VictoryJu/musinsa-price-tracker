@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { HistorySample, Product } from '../shared/types';
 import { renderProductUi } from './render';
 
@@ -36,6 +36,10 @@ function sample(ts: number, price: number | null, status: HistorySample['status'
 }
 
 describe('renderProductUi', () => {
+  beforeEach(() => {
+    document.body.innerHTML = '';
+  });
+
   afterEach(() => {
     vi.useRealTimers();
   });
@@ -73,8 +77,9 @@ describe('renderProductUi', () => {
     expect(mount?.style.zIndex).toBe('2147483647');
   });
 
-  it('shows the core price dashboard and chart without hover', () => {
+  it('places a compact tracking badge next to the Musinsa price and keeps details in a hover popover', () => {
     const now = Date.UTC(2026, 4, 1);
+    document.body.innerHTML = '<div><span>60%</span> <strong id="musinsa-price">37,700\uC6D0</strong></div>';
     const result = renderProductUi({
       root: document,
       productId: '3674341',
@@ -87,13 +92,75 @@ describe('renderProductUi', () => {
     const mount = document.querySelector('[data-musinsa-price-tracker]');
     const shadow = mount?.shadowRoot;
     expect(result.mode).toBe('tracked');
+    expect(document.querySelector('#musinsa-price')?.nextElementSibling).toBe(mount);
+    expect(mount?.getAttribute('data-placement')).toBe('inline-price');
+    expect((mount as HTMLElement | null)?.style.position).toBe('relative');
     expect(mount?.getAttribute('data-hover-mounted')).toBeNull();
+    expect(shadow?.querySelector('[data-price-badge]')?.textContent).toBe('Tracked 37,700\uC6D0');
+    expect(shadow?.querySelector('[data-price-popover]')).not.toBeNull();
     expect(shadow?.querySelector('[data-price-card]')).not.toBeNull();
     expect(shadow?.querySelector('[data-current-price]')?.textContent).toBe('37,700원');
     expect(shadow?.querySelector('[data-snapshot-label]')?.textContent).toBe('Current price');
     expect(shadow?.querySelector('[data-stat="low"]')?.textContent).toContain('37,700원');
     expect(shadow?.querySelector('[data-stat="avg"]')?.textContent).toContain('39,000원');
     expect(shadow?.querySelector('[data-sparkline] polyline')?.getAttribute('points')).toBe('0,18 50,0 100,9');
+  });
+
+  it('prefers the product detail price over matching recommendation prices', () => {
+    document.body.innerHTML = `
+      <article class="Curation__Container"><span id="recommended-price">37,700\uC6D0</span></article>
+      <div class="Price__CurrentPrice-sc-1vz564u-7"><span>60%</span><span id="detail-price" class="Price__CalculatedPrice-sc-1vz564u-11">37,700\uC6D0</span></div>
+    `;
+
+    renderProductUi({
+      root: document,
+      productId: '3674341',
+      product: productFixture(),
+      onTrackStart: vi.fn(),
+    });
+
+    const mount = document.querySelector('[data-musinsa-price-tracker]');
+    expect(document.querySelector('#detail-price')?.nextElementSibling).toBe(mount);
+    expect(document.querySelector('#recommended-price')?.nextElementSibling).not.toBe(mount);
+  });
+
+  it('falls back to the lower-right floating card when the page price anchor cannot be found', () => {
+    renderProductUi({
+      root: document,
+      productId: '3674341',
+      product: productFixture(),
+      onTrackStart: vi.fn(),
+    });
+
+    const mount = document.querySelector<HTMLElement>('[data-musinsa-price-tracker]');
+    expect(mount?.getAttribute('data-placement')).toBe('floating-fallback');
+    expect(mount?.style.position).toBe('fixed');
+    expect(mount?.style.right).toBe('24px');
+    expect(mount?.style.bottom).toBe('24px');
+  });
+
+  it('moves the tracked UI from fallback to the product price when the price DOM appears later', () => {
+    vi.useFakeTimers();
+    renderProductUi({
+      root: document,
+      productId: '3674341',
+      product: productFixture(),
+      onTrackStart: vi.fn(),
+      placementRetryMs: [100],
+    });
+
+    const mount = document.querySelector<HTMLElement>('[data-musinsa-price-tracker]');
+    expect(mount?.getAttribute('data-placement')).toBe('floating-fallback');
+
+    document.body.insertAdjacentHTML(
+      'afterbegin',
+      '<div class="Price__CurrentPrice-sc-1vz564u-7"><span id="late-price" class="Price__CalculatedPrice-sc-1vz564u-11">37,700\uC6D0</span></div>'
+    );
+    vi.advanceTimersByTime(100);
+
+    expect(document.querySelector('#late-price')?.nextElementSibling).toBe(mount);
+    expect(mount?.getAttribute('data-placement')).toBe('inline-price');
+    expect(mount?.style.position).toBe('relative');
   });
 
   it('keeps a one-sample chart visible with an empty state instead of hiding it', () => {

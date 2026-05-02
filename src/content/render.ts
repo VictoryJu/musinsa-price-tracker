@@ -12,6 +12,7 @@ export interface RenderProductUiOptions {
   historySamples?: HistorySample[];
   now?: number;
   soakPeriodDays?: number;
+  placementRetryMs?: number[];
 }
 
 export interface RenderProductUiResult {
@@ -25,10 +26,10 @@ export function renderProductUi(options: RenderProductUiOptions): RenderProductU
 
   const mount = options.root.createElement('span');
   mount.dataset.musinsaPriceTracker = options.productId;
-  pinMountToViewport(mount);
-  options.root.body.append(mount);
 
   if (!options.product) {
+    pinMountToViewport(mount);
+    options.root.body.append(mount);
     const button = options.root.createElement('button');
     button.type = 'button';
     button.textContent = '+';
@@ -39,10 +40,13 @@ export function renderProductUi(options: RenderProductUiOptions): RenderProductU
     return { mode: 'cta', durationMs: performance.now() - startedAt };
   }
 
+  const placedInline = placeTrackedMount(mount, options);
+  if (!placedInline) scheduleInlinePlacementRetry(mount, options);
   const shadow = mount.attachShadow({ mode: 'open' });
   mount.setAttribute('data-state', getSnapshotState(options.product));
   shadow.append(createStatusStyle());
-  shadow.append(createPriceCard(options));
+  shadow.append(createInlinePriceBadge(options));
+  shadow.append(createPricePopover(options));
 
   return { mode: 'tracked', durationMs: performance.now() - startedAt };
 }
@@ -67,6 +71,109 @@ function getTrackedDays(addedAt: number, now: number): number {
 function getSnapshotState(product: Product): 'ok' | 'soldOut' | 'failed' | 'blocked' {
   if (product.currentSnapshot.status === 'failed' && product.currentSnapshot.errorClass === 'blocked') return 'blocked';
   return product.currentSnapshot.status;
+}
+
+function placeTrackedMount(mount: HTMLElement, options: RenderProductUiOptions): boolean {
+  const priceAnchor = findPriceAnchor(options.root, options.product);
+  if (priceAnchor) {
+    mount.dataset.placement = 'inline-price';
+    styleInlineHost(mount, priceAnchor);
+    priceAnchor.insertAdjacentElement('afterend', mount);
+    return true;
+  }
+
+  mount.dataset.placement = 'floating-fallback';
+  pinMountToViewport(mount);
+  options.root.body.append(mount);
+  return false;
+}
+
+function scheduleInlinePlacementRetry(mount: HTMLElement, options: RenderProductUiOptions): void {
+  const retryDelays = options.placementRetryMs ?? [250, 1000, 2500, 5000];
+  for (const delay of retryDelays) {
+    window.setTimeout(() => {
+      if (!mount.isConnected || mount.dataset.placement !== 'floating-fallback') return;
+      moveMountToPriceAnchorIfReady(mount, options);
+    }, delay);
+  }
+}
+
+function moveMountToPriceAnchorIfReady(mount: HTMLElement, options: RenderProductUiOptions): void {
+  const priceAnchor = findPriceAnchor(options.root, options.product);
+  if (!priceAnchor) return;
+
+  mount.dataset.placement = 'inline-price';
+  styleInlineHost(mount, priceAnchor);
+  priceAnchor.insertAdjacentElement('afterend', mount);
+}
+
+function findPriceAnchor(root: Document, product: Product | null): Element | null {
+  if (!product || product.currentSnapshot.status !== 'ok') return null;
+
+  const priceLabel = formatPrice(product.currentSnapshot.price);
+  const candidates = Array.from(root.body.querySelectorAll<HTMLElement>('body *'))
+    .filter((element) => {
+      if (element.closest('[data-musinsa-price-tracker]')) return false;
+      if (['SCRIPT', 'STYLE', 'NOSCRIPT', 'META', 'LINK'].includes(element.tagName)) return false;
+      const text = normalizeText(element.textContent ?? '');
+      if (text === priceLabel) return true;
+      return text.includes(priceLabel) && text.length <= priceLabel.length + 10;
+    })
+    .map((element) => ({ element, score: scorePriceAnchor(element, priceLabel) }))
+    .sort((left, right) => right.score - left.score);
+
+  return candidates[0]?.element ?? null;
+}
+
+function normalizeText(value: string): string {
+  return value.replace(/\s+/g, ' ').trim();
+}
+
+function scorePriceAnchor(element: HTMLElement, priceLabel: string): number {
+  const text = normalizeText(element.textContent ?? '');
+  const classPath = getClassPath(element);
+  const rect = element.getBoundingClientRect();
+  let score = 0;
+
+  if (text === priceLabel) score += 20;
+  if (element.children.length === 0) score += 80;
+  if (/CalculatedPrice|CurrentPrice|Price__/.test(classPath)) score += 120;
+  if (/Price__CurrentPrice|Price__PriceTotalWrap|Price__PriceWrap/.test(classPath)) score += 60;
+  if (/Curation|Carousel|Recommend|ProductsItem|impression-content/.test(classPath)) score -= 120;
+  if (rect.width > 0 && rect.height > 0 && rect.x > window.innerWidth * 0.5 && rect.y < window.innerHeight * 0.75) score += 30;
+
+  return score - text.length / 100;
+}
+
+function getClassPath(element: HTMLElement): string {
+  const classes: string[] = [];
+  let current: Element | null = element;
+  while (current && current !== document.body) {
+    classes.push(String((current as HTMLElement).className ?? ''));
+    current = current.parentElement;
+  }
+  return classes.join(' ');
+}
+
+function createInlinePriceBadge(options: RenderProductUiOptions): HTMLElement {
+  const badge = document.createElement('button');
+  badge.type = 'button';
+  badge.dataset.priceBadge = 'true';
+  badge.textContent = `Tracked ${getCurrentPriceLabel(options.product)}`;
+  badge.setAttribute('aria-label', 'Show Musinsa price tracking details');
+  return badge;
+}
+
+function createPricePopover(options: RenderProductUiOptions): HTMLElement {
+  const popover = document.createElement('div');
+  popover.dataset.pricePopover = 'true';
+  popover.append(createPriceCard(options));
+  return popover;
+}
+
+function getCurrentPriceLabel(product: Product | null): string {
+  if (!product) return '-';
+  return product.currentSnapshot.status === 'ok' ? formatPrice(product.currentSnapshot.price) : formatSnapshotLabel(product.currentSnapshot);
 }
 
 function createPriceCard(options: RenderProductUiOptions): HTMLElement {
@@ -145,16 +252,61 @@ function createStatusStyle(): HTMLStyleElement {
   style.textContent = `
     :host {
       all: initial;
-      display: block;
-      width: 292px;
+      display: inline-block;
+      position: relative;
       color: #111827;
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       font-size: 12px;
       line-height: 1.35;
       box-sizing: border-box;
+      vertical-align: middle;
     }
     *, *::before, *::after {
       box-sizing: border-box;
+    }
+    [data-price-badge] {
+      border: 1px solid rgba(17, 24, 39, 0.14);
+      border-radius: 7px;
+      background: #ffffff;
+      color: #0f766e;
+      cursor: default;
+      display: inline-flex;
+      align-items: center;
+      font: 800 12px/1 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      min-height: 28px;
+      margin-left: 8px;
+      padding: 0 8px;
+      white-space: nowrap;
+      box-shadow: 0 6px 16px rgba(17, 24, 39, 0.08);
+    }
+    [data-price-popover] {
+      position: fixed;
+      top: var(--mpt-popover-top, 0);
+      left: var(--mpt-popover-left, 0);
+      width: 292px;
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(-4px);
+      transition: opacity 120ms ease, transform 120ms ease, visibility 120ms ease;
+      visibility: hidden;
+      z-index: 2147483647;
+    }
+    :host(:hover) [data-price-popover],
+    :host(:focus-within) [data-price-popover] {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translateY(0);
+      visibility: visible;
+    }
+    :host([data-placement="floating-fallback"]) [data-price-badge] {
+      display: none;
+    }
+    :host([data-placement="floating-fallback"]) [data-price-popover] {
+      position: static;
+      opacity: 1;
+      pointer-events: auto;
+      transform: none;
+      visibility: visible;
     }
     [data-price-card] {
       width: 100%;
@@ -305,6 +457,29 @@ function pinMountToViewport(mount: HTMLElement): void {
     display: 'inline-flex',
     alignItems: 'center',
   });
+}
+
+function styleInlineHost(mount: HTMLElement, anchor: Element): void {
+  const anchorRect = anchor.getBoundingClientRect();
+  const popoverWidth = 292;
+  const margin = 12;
+  const estimatedBadgeWidth = 124;
+  const left = Math.max(
+    margin,
+    Math.min(anchorRect.right + estimatedBadgeWidth - popoverWidth, window.innerWidth - popoverWidth - margin)
+  );
+  const top = Math.min(anchorRect.bottom + 8, window.innerHeight - 240);
+
+  Object.assign(mount.style, {
+    position: 'relative',
+    right: '',
+    bottom: '',
+    zIndex: '2147483647',
+    display: 'inline-block',
+    alignItems: '',
+  });
+  mount.style.setProperty('--mpt-popover-left', `${Math.round(left)}px`);
+  mount.style.setProperty('--mpt-popover-top', `${Math.round(top)}px`);
 }
 
 function styleTrackButton(button: HTMLButtonElement): void {
